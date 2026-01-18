@@ -97,3 +97,67 @@ def plot_comparisons(results, player_num):
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.show(block=False)
+
+# --- ADD THIS TO THE BOTTOM OF step7_comparison.py ---
+
+def plot_grand_average_comparison(group_data, player_num):
+    """
+    Plots the grand average of the comparative analysis (4 lines) with SEM shading.
+    group_data: Dictionary containing lists of scores for each condition.
+                e.g., {'Own Current': [sub1_arr, sub2_arr...], ...}
+    """
+    print(f"--- Plotting Grand Average Comparison for Player {player_num} ---")
+    
+    # Check if we have data (look at the first key's list)
+    first_key = next(iter(group_data))
+    if not group_data[first_key]:
+        print("   -> No data to plot.")
+        return
+
+    # Create Time Axis (Assume 20 bins = 5.0s)
+    n_bins = len(group_data[first_key][0])
+    time_axis = np.linspace(0, 5.0, n_bins)
+    
+    plt.figure(figsize=(12, 6))
+    
+    # Define Colors & Styles
+    styles = {
+        'Own Current':      ('blue', '-'),
+        'Opponent Current': ('orange', '-'),
+        'Own Previous':     ('green', '--'),
+        'Opponent Previous':('red', '--')
+    }
+    
+    # Plot each condition
+    for name, score_list in group_data.items():
+        if not score_list: continue
+        
+        # Convert list of arrays to Matrix -> (N_Subjects, N_Bins)
+        mat = np.array(score_list)
+        n_subs = mat.shape[0]
+        
+        # Calculate Mean and Standard Error
+        mean_scores = np.mean(mat, axis=0)
+        sem_scores = np.std(mat, axis=0) / np.sqrt(n_subs)
+        
+        color, ls = styles.get(name, ('black', '-'))
+        
+        # Plot Mean Line
+        plt.plot(time_axis, mean_scores, label=f"{name}", color=color, linestyle=ls, linewidth=2)
+        
+        # Plot Shaded Error Region
+        plt.fill_between(time_axis, mean_scores - sem_scores, mean_scores + sem_scores, 
+                         color=color, alpha=0.15)
+
+    # Reference Lines
+    plt.axhline(33.33, color='k', linestyle=':', alpha=0.5)
+    plt.axvline(2.0, color='gray', alpha=0.3)
+    plt.axvline(4.0, color='gray', alpha=0.3)
+    
+    plt.title(f"Grand Average Comparative Decoding: Player {player_num} (N={n_subs})")
+    plt.xlabel("Time (s)")
+    plt.ylabel("Accuracy (%)")
+    plt.ylim(20, 100)
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.show(block=False)
