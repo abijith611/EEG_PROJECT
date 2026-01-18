@@ -1,0 +1,269 @@
+# import mne
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from mne.preprocessing import ICA
+
+# def run_preprocessing(raw, target_rate=256):
+#     print("--- [step2_preprocessing] Starting Cleaning Pipeline ---")
+#     raw = raw.copy()
+    
+#     # 1. AGGRESSIVE NAME FIXING
+#     # BioSemi files often have suffixes or casing that breaks the mapping.
+#     print(f"   Original Channel Names (First 5): {raw.ch_names[:5]}")
+    
+#     rename_dict = {}
+#     for ch in raw.ch_names:
+#         # Clean the name (remove -Ref, .., spaces)
+#         new_name = ch.replace('-Ref', '').replace('..', '').strip()
+        
+#         # Standardize Capitalization (FP1 -> Fp1, FZ -> Fz)
+#         if new_name.isupper():
+#             if new_name.startswith('FP'): 
+#                 new_name = 'Fp' + new_name[2:]
+#             elif new_name.endswith('Z'):  
+#                 new_name = new_name[:-1] + 'z'
+                
+#         rename_dict[ch] = new_name
+
+#     try:
+#         raw.rename_channels(rename_dict)
+#     except Exception as e:
+#         print(f"   -> Name cleanup warning: {e}")
+
+#     # 2. APPLY MONTAGE (FIXED)
+#     # Define which channels are EEG (exclude Status/Physio)
+#     # We explicitly verify they exist to avoid the 'on_missing' error
+#     potential_eeg = [c for c in raw.ch_names if c not in ['Status', 'Erg1', 'Erg2', 'GSR1', 'GSR2', 'Resp', 'Plet', 'Temp']]
+    
+#     # Create a safe mapping dictionary
+#     type_map = {c: 'eeg' for c in potential_eeg if c in raw.ch_names}
+    
+#     # Apply types (No on_missing argument needed now)
+#     try:
+#         raw.set_channel_types(type_map)
+#     except Exception as e:
+#         print(f"   -> Warning setting channel types: {e}")
+
+#     # Apply the standard 10-20 map
+#     try:
+#         montage = mne.channels.make_standard_montage('standard_1020')
+#         # on_missing is supported in set_montage (usually), but if your version is very old
+#         # and this fails too, remove on_missing='ignore' here as well.
+#         raw.set_montage(montage, on_missing='ignore') 
+#         print("   -> 10-20 System Montage applied.")
+#     except Exception as e:
+#         print(f"   -> ❌ WARNING: Could not set montage. ICA Topologies will NOT work. Error: {e}")
+
+#     # 3. INTERPOLATION
+#     # Get data safely
+#     try:
+#         data = raw.get_data(picks='eeg')
+#     except:
+#         # Fallback if 'eeg' type wasn't set correctly
+#         data = raw.get_data() 
+
+#     if data.size > 0:
+#         stds = np.std(data, axis=1)
+#         # Handle cases where all channels are flat (median=0)
+#         median_std = np.median(stds[stds > 0]) if np.any(stds > 0) else 1.0
+        
+#         bad_indices = [i for i, std in enumerate(stds) if std == 0 or std > 15 * median_std]
+#         # Map indices back to names
+#         bad_names = [raw.ch_names[i] for i in bad_indices]
+        
+#         # Assign to raw.info
+#         raw.info['bads'] = [ch for ch in bad_names if ch in raw.ch_names]
+        
+#         if raw.info['bads']:
+#             print(f"   -> Interpolating {len(raw.info['bads'])} bad channels.")
+#             raw.interpolate_bads(reset_bads=True, verbose=False)
+
+#     # 4. CAR & RESAMPLE
+#     raw.set_eeg_reference('average', projection=False, verbose=False)
+    
+#     if raw.info['sfreq'] != target_rate:
+#         print(f"   -> Resampling to {target_rate} Hz...")
+#         raw.resample(target_rate, npad="auto")
+        
+#     return raw
+
+# def visualize_clean_data(raw, title="Clean Data"):
+#     print(f"--- Visualizing Cleaned {title} ---")
+#     try:
+#         raw.compute_psd(fmax=60).plot(average=True, picks='all', exclude='bads')
+#         plt.title(f"{title} - Frequency Spectrum")
+#         plt.show(block=False)
+#     except Exception as e:
+#         print(f"Could not plot PSD: {e}")
+
+# def visualize_ica_components(raw, n_components=15):
+#     print(f"--- [step2_preprocessing] Calculating ICA ({n_components} comps) ---")
+    
+#     # 1. SAFETY CHECK
+#     if raw.info['dig'] is None or len(raw.info['dig']) == 0:
+#         print("❌ CRITICAL WARNING: No digitization points found.")
+#         print("   -> Skipping ICA Topomaps to prevent crash.")
+#         return None
+
+#     # 2. Filter & Fit
+#     raw_ica = raw.copy().filter(l_freq=1.0, h_freq=None, verbose=False)
+#     ica = ICA(n_components=n_components, method='fastica', random_state=97)
+#     ica.fit(raw_ica, verbose=False)
+    
+#     # 3. Plot
+#     print("   -> Plotting ICA Topomaps...")
+#     try:
+#         ica.plot_components(show=False) 
+#         plt.suptitle("Independent Components (Artifacts & Signals)", y=1.02)
+#         plt.show(block=False)
+#     except Exception as e:
+#         print(f"   -> Plotting failed: {e}")
+    
+#     return ica
+
+
+import mne
+import numpy as np
+import matplotlib.pyplot as plt
+from mne.preprocessing import ICA
+
+def run_preprocessing(raw, target_rate=256):
+    print("\n" + "="*50)
+    print("--- [step2_preprocessing] Starting Cleaning Pipeline ---")
+    raw = raw.copy()
+    
+    # =========================================================================
+    # 1. TRANSLATION LAYER (The Fix for BioSemi Names)
+    # =========================================================================
+    # We map the 64 raw channels (A1..A32, B1..B32) to standard 10-20 locations.
+    # This list follows the standard BioSemi 64-channel layout order.
+    standard_64_names = [
+        # === A-SIDE (Left Hemisphere / Center) ===
+        # Matches indices 0 to 31 (A1 to A32)
+        'Fp1', 'AF7', 'AF3', 'F1', 'F3', 'F5', 'F7', 'FT7', 
+        'FC5', 'FC3', 'FC1', 'C1', 'C3', 'C5', 'T7', 'TP7', 
+        'CP5', 'CP3', 'CP1', 'P1', 'P3', 'P5', 'P7', 'P9', 
+        'PO7', 'PO3', 'O1', 'Iz', 'Oz', 'POz', 'Pz', 'CPz',
+
+        # === B-SIDE (Right Hemisphere / Center) ===
+        # Matches indices 32 to 63 (B1 to B32)
+        'Fp2', 'AF8', 'AF4', 'AFz', 'Fz', 'F2', 'F4', 'F6', 
+        'F8', 'FT8', 'FC6', 'FC4', 'FC2', 'FCz', 'Cz', 
+        'C2', 'C4', 'C6', 'T8', 'TP8', 'CP6', 'CP4', 'CP2', 'P2', 
+        'P4', 'P6', 'P8', 'P10', 'PO8', 'PO4', 'O2', 'Fpz' 
+    ]
+
+
+    print(f"   Original First Name: {raw.ch_names[0]}")
+    
+    # We assume the file channels are ordered A1..A32 then B1..B32
+    # We rename the first 64 channels in the file to the standard list.
+    rename_dict = {}
+    if len(raw.ch_names) >= 64:
+        for i in range(64):
+            original_name = raw.ch_names[i]
+            # Only rename if it looks like a BioSemi name (contains 'A' or 'B' or '1-'/'2-')
+            if any(x in original_name for x in ['A', 'B', '1-', '2-']):
+                rename_dict[original_name] = standard_64_names[i]
+    
+    if rename_dict:
+        print(f"   -> Translating {len(rename_dict)} BioSemi names to Standard 10-20 system...")
+        try:
+            raw.rename_channels(rename_dict)
+            print(f"   -> Success! New First Name: {raw.ch_names[0]} (Should be Fp1)")
+        except Exception as e:
+            print(f"   -> Renaming Warning: {e}")
+
+    # =========================================================================
+    # 2. APPLY MONTAGE
+    # =========================================================================
+    try:
+        # Define EEG channels (First 64 are now standard names)
+        # We ensure anything named like "Fp1" is treated as EEG.
+        # We filter 'valid_map' to only include channels actually in raw.ch_names,
+        # so we don't need the 'on_missing' argument anymore.
+        valid_map = {ch: 'eeg' for ch in raw.ch_names if ch in standard_64_names}
+        
+        # FIX: Removed on_missing='ignore'
+        if valid_map:
+            raw.set_channel_types(valid_map)
+
+        # Apply the standard 10-20 map
+        montage = mne.channels.make_standard_montage('standard_1020')
+        raw.set_montage(montage, on_missing='ignore') 
+        print("   -> 10-20 System Montage applied.")
+        
+    except Exception as e:
+        print(f"   -> ❌ WARNING: Could not set montage. ICA Topologies will NOT work. Error: {e}")
+
+    # =========================================================================
+    # 3. INTERPOLATION
+    # =========================================================================
+    try:
+        # Use only EEG channels for std calculation
+        picks = mne.pick_types(raw.info, eeg=True)
+        data = raw.get_data(picks=picks)
+        
+        if data.size > 0:
+            stds = np.std(data, axis=1)
+            median_std = np.median(stds[stds > 0]) if np.any(stds > 0) else 1.0
+            
+            # Find bad indices relative to the picks
+            bad_indices_local = [i for i, std in enumerate(stds) if std == 0 or std > 15 * median_std]
+            # Convert local pick indices to channel names
+            bad_names = [raw.ch_names[picks[i]] for i in bad_indices_local]
+            
+            raw.info['bads'] = bad_names
+            if raw.info['bads']:
+                print(f"   -> Interpolating {len(raw.info['bads'])} bad channels: {raw.info['bads']}")
+                raw.interpolate_bads(reset_bads=True, verbose=False)
+    except Exception as e:
+        print(f"   -> Interpolation skipped/failed: {e}")
+
+    # =========================================================================
+    # 4. CAR & RESAMPLE
+    # =========================================================================
+    print("   -> Applying CAR...")
+    raw.set_eeg_reference('average', projection=False, verbose=False)
+    
+    if raw.info['sfreq'] != target_rate:
+        print(f"   -> Resampling to {target_rate}Hz...")
+        raw.resample(target_rate, npad="auto")
+        
+    print("="*50 + "\n")
+    return raw
+
+def visualize_clean_data(raw, title="Clean Data"):
+    print(f"--- Visualizing Cleaned {title} ---")
+    try:
+        raw.compute_psd(fmax=60).plot(average=True, picks='all', exclude='bads')
+        plt.title(f"{title} - Frequency Spectrum")
+        plt.show(block=False)
+    except Exception as e:
+        print(f"Could not plot PSD: {e}")
+
+def visualize_ica_components(raw, n_components=15):
+    print(f"--- [step2_preprocessing] Calculating ICA ({n_components} comps) ---")
+    
+    # 1. FINAL SAFETY CHECK
+    if raw.info['dig'] is None or len(raw.info['dig']) == 0:
+        print("❌ SKIPPING ICA PLOT: No digitization points found.")
+        print("   -> Renaming failed. Check raw.ch_names output.")
+        return None
+
+    # 2. Filter & Fit
+    try:
+        raw_ica = raw.copy().filter(l_freq=1.0, h_freq=None, verbose=False)
+        ica = ICA(n_components=n_components, method='fastica', random_state=97)
+        ica.fit(raw_ica, verbose=False)
+        
+        print("   -> Plotting ICA Topomaps...")
+        # Plotting
+        ica.plot_components(show=False) 
+        plt.suptitle("Independent Components", y=1.02)
+        plt.show(block=False)
+        return ica
+        
+    except Exception as e:
+        print(f"❌ ICA ERROR: {e}")
+        return None
