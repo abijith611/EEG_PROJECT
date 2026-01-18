@@ -157,7 +157,7 @@ def plot_grand_average_comparison(group_data, player_num):
     plt.title(f"Grand Average Comparative Decoding: Player {player_num} (N={n_subs})")
     plt.xlabel("Time (s)")
     plt.ylabel("Accuracy (%)")
-    plt.ylim(20, 100)
+    plt.ylim(25, 45)
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.show(block=False)
