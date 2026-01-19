@@ -34,7 +34,7 @@ def plot_paper_replication(times, scores, title):
     plt.title(f"{title} (Replicated 3-Phase Structure)")
     plt.xlabel("Time (s)")
     plt.ylabel("Accuracy (%)")
-    plt.ylim(25, 45) # Keep 0-100 scale
+    plt.ylim(0, 100) # Keep 0-100 scale
     plt.grid(True, linestyle=':', alpha=0.6)
     plt.legend(loc='upper right')
     
@@ -89,7 +89,7 @@ def plot_grand_average(times, all_subject_scores, player_num):
     plt.title(f"Grand Average Decoding Accuracy: Player {player_num}")
     plt.xlabel("Time (s)")
     plt.ylabel("Accuracy (%)")
-    plt.ylim(25, 45) # Adjust based on your data range
+    plt.ylim(20, 100) # Adjust based on your data range
     plt.legend()
     plt.grid(True, linestyle=':', alpha=0.4)
     plt.show(block=False)
