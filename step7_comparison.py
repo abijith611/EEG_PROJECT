@@ -93,7 +93,7 @@ def plot_comparisons(results, player_num):
     plt.title(f"Comparative Decoding: Player {player_num}")
     plt.xlabel("Time (s)")
     plt.ylabel("Decoding Accuracy (%)")
-    plt.ylim(20, 100) # Zoom in a bit
+    plt.ylim(25, 45) # Zoom in a bit
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.show(block=False)
