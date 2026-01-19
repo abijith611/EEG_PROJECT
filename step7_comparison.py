@@ -78,27 +78,29 @@ def plot_comparisons(results, player_num):
             c, ls, lw = styles.get(name, ('black', '-', 1))
             plt.plot(time_axis, scores, label=name, color=c, linestyle=ls, linewidth=lw)
     
-    # Reference Lines & Text
-    plt.axhline(33.33, color='k', linestyle=':', alpha=0.5)
+    # Chance Level
+    plt.axhline(33.33, color='r', linestyle='--', label='Chance (33%)')
     
-    # Vertical Phase Lines
-    plt.axvline(2.0, color='gray', linestyle='-', alpha=0.3)
-    plt.text(1.0, 95, "DECISION", ha='center', fontsize=10, alpha=0.5)
+    # --- PHASE SEPARATORS ---
+    # Phase 1 (Decision) ends at 2.0s
+    plt.axvline(2.0, color='k', linestyle='--', linewidth=1.5, alpha=0.5)
+    plt.text(1.0, 39, "DECISION", ha='center', fontsize=12, fontweight='bold', alpha=0.5)
     
-    plt.axvline(4.0, color='gray', linestyle='-', alpha=0.3)
-    plt.text(3.0, 95, "RESPONSE", ha='center', fontsize=10, alpha=0.5)
+    # Phase 2 (Response) ends at 4.0s (2.0 + 2.0)
+    plt.axvline(4.0, color='k', linestyle='--', linewidth=1.5, alpha=0.5)
+    plt.text(3.0, 39, "RESPONSE", ha='center', fontsize=12, fontweight='bold', alpha=0.5)
     
-    plt.text(4.5, 95, "FEEDBACK", ha='center', fontsize=10, alpha=0.5)
+    # Phase 3 (Feedback) ends at 5.0s
+    plt.text(4.5, 39, "FEEDBACK", ha='center', fontsize=12, fontweight='bold', alpha=0.5)
 
     plt.title(f"Comparative Decoding: Player {player_num}")
     plt.xlabel("Time (s)")
     plt.ylabel("Decoding Accuracy (%)")
-    plt.ylim(20, 100) # Zoom in a bit
-    plt.legend()
-    plt.grid(True, alpha=0.3)
+    plt.ylim(30, 40) # Zoom in a bit
+    plt.legend(loc='lower right')
+    plt.grid(True, linestyle=':', alpha=0.6)
     plt.show(block=False)
 
-# --- ADD THIS TO THE BOTTOM OF step7_comparison.py ---
 
 def plot_grand_average_comparison(group_data, player_num):
     """
@@ -149,15 +151,25 @@ def plot_grand_average_comparison(group_data, player_num):
         plt.fill_between(time_axis, mean_scores - sem_scores, mean_scores + sem_scores, 
                          color=color, alpha=0.15)
 
-    # Reference Lines
-    plt.axhline(33.33, color='k', linestyle=':', alpha=0.5)
-    plt.axvline(2.0, color='gray', alpha=0.3)
-    plt.axvline(4.0, color='gray', alpha=0.3)
+    # Chance Level
+    plt.axhline(33.33, color='r', linestyle='--', label='Chance (33%)')
+    
+    # --- PHASE SEPARATORS ---
+    # Phase 1 (Decision) ends at 2.0s
+    plt.axvline(2.0, color='k', linestyle='--', linewidth=1.5, alpha=0.5)
+    plt.text(1.0, 39, "DECISION", ha='center', fontsize=12, fontweight='bold', alpha=0.5)
+    
+    # Phase 2 (Response) ends at 4.0s (2.0 + 2.0)
+    plt.axvline(4.0, color='k', linestyle='--', linewidth=1.5, alpha=0.5)
+    plt.text(3.0, 39, "RESPONSE", ha='center', fontsize=12, fontweight='bold', alpha=0.5)
+    
+    # Phase 3 (Feedback) ends at 5.0s
+    plt.text(4.5, 39, "FEEDBACK", ha='center', fontsize=12, fontweight='bold', alpha=0.5)
     
     plt.title(f"Grand Average Comparative Decoding: Player {player_num} (N={n_subs})")
     plt.xlabel("Time (s)")
     plt.ylabel("Accuracy (%)")
-    plt.ylim(25, 45)
-    plt.legend()
-    plt.grid(True, alpha=0.3)
+    plt.ylim(30, 40)
+    plt.legend(loc='lower right')
+    plt.grid(True, linestyle=':', alpha=0.6)
     plt.show(block=False)

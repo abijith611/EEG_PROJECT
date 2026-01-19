@@ -34,14 +34,13 @@ def plot_paper_replication(times, scores, title):
     plt.title(f"{title} (Replicated 3-Phase Structure)")
     plt.xlabel("Time (s)")
     plt.ylabel("Accuracy (%)")
-    plt.ylim(0, 100) # Keep 0-100 scale
+    plt.ylim(30, 40) # Keep 0-100 scale
     plt.grid(True, linestyle=':', alpha=0.6)
     plt.legend(loc='upper right')
     
     # Important: block=False keeps the code running!
     plt.show(block=False)
 
-# --- ADD THIS TO step6_visualization.py ---
 
 def plot_grand_average(times, all_subject_scores, player_num):
     """

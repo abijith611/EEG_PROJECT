@@ -28,13 +28,13 @@ def load_and_split_data(subject_id, basic_path):
     p1_indices = list(range(0, 64))
     
     # Determine Player 2 indices based on file size
-    if n_chans >= 135:
+    if n_chans == 143:
         # Scenario A: Standard Layout (Gap between players)
         # Indices 71 to 134 (64 channels)
         print("   -> Layout detected: STANDARD (Gap between players).")
         p2_indices = list(range(71, 135))
         
-    elif n_chans >= 128:
+    elif n_chans == 129:
         # Scenario B: Compact Layout (No gap)
         # Indices 64 to 127 (64 channels)
         print("   -> Layout detected: COMPACT (No gap between players).")
