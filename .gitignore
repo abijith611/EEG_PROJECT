@@ -1,0 +1,5 @@
+# Ignore the project directory
+project/
+
+# Ignore all pycache folders
+**/__pycache__/
