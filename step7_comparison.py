@@ -44,7 +44,7 @@ def run_comparative_analysis(epochs_binned, full_df, player_num):
         # C. Decode
         # We pass the subsetted data and labels to Step 5
         # times comes back as bin indices (0..19), we'll fix visual later
-        times, scores = step5_decoding.run_svm_decoding(X_sub, custom_labels=y_sub)
+        times, scores = step5_decoding.run_svm_decoding_original(X_sub, custom_labels=y_sub)
         
         results[task_name] = scores # Store just scores
 
