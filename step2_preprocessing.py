@@ -126,12 +126,76 @@ import mne
 import numpy as np
 import matplotlib.pyplot as plt
 from mne.preprocessing import ICA
+import pandas as pd
+import os
 
-def run_preprocessing(raw, target_rate=256):
-    print("\n" + "="*50)
-    print("--- [step2_preprocessing] Starting Cleaning Pipeline ---")
-    raw = raw.copy()
+def load_bad_channels_from_participants(subject_id, basic_path, player_num):
+    """
+    Load bad channels from participants.tsv - EXACT COLUMN NAMES
+    """
+    participants_file = f'{basic_path}/participants.tsv'
     
+    if not os.path.exists(participants_file):
+        print(f"   participants.tsv not found at {participants_file}")
+        return []
+    
+    try:
+        df = pd.read_csv(participants_file, sep='\t')
+        
+        # Find the subject
+        subject_row = df[df['participant_id'] == subject_id]
+        if subject_row.empty:
+            print(f"   Subject {subject_id} not found in participants.tsv")
+            return []
+        
+        # Get the correct column name
+        col_name = f'player{player_num}_pre_processing_channels_fixed'
+        
+        if col_name not in subject_row.columns:
+            print(f"   Column {col_name} not found in participants.tsv")
+            return []
+        
+        # Get the value
+        value = subject_row[col_name].values[0]
+        
+        # Check if it's NaN or empty
+        if pd.isna(value):
+            print(f"   No bad channels specified for {subject_id} (NaN)")
+            return []
+        
+        # Convert to string and clean
+        channels_str = str(value).strip()
+        
+        if channels_str == '' or channels_str.lower() == 'nan':
+            print(f"   No bad channels specified for {subject_id} (empty)")
+            return []
+        
+        # Parse comma-separated channels
+        # Example: "FC5, T7, POz, P2"
+        channels = []
+        for ch in channels_str.split(','):
+            ch_clean = ch.strip()
+            if ch_clean:  # Not empty
+                channels.append(ch_clean)
+        
+        print(f"   Loaded {len(channels)} bad channels from {col_name}: {channels}")
+        return channels
+        
+    except Exception as e:
+        print(f"   Error loading bad channels: {e}")
+        return []
+
+def run_preprocessing(raw, subject_id=None, basic_path=None, player_num=None, target_rate=256):
+    """
+    Updated version that accepts optional bad channel parameters
+    """
+    print("\n" + "="*50)
+    print(f"--- [step2_preprocessing] Cleaning Pipeline ---")
+    if subject_id and player_num:
+        print(f"   Subject: {subject_id}, Player: {player_num}")
+    
+    raw = raw.copy()
+
     # =========================================================================
     # 1. TRANSLATION LAYER (The Fix for BioSemi Names)
     # =========================================================================
@@ -174,8 +238,31 @@ def run_preprocessing(raw, target_rate=256):
         except Exception as e:
             print(f"   -> Renaming Warning: {e}")
 
+    # ======================================================
+    # 2. LOAD BAD CHANNELS
+    # ======================================================
+    if subject_id and basic_path and player_num:
+        import pandas as pd
+        import os
+        
+        participants_file = f'{basic_path}/participants.tsv'
+        if os.path.exists(participants_file):
+            try:
+                df = pd.read_csv(participants_file, sep='\t')
+                subject_row = df[df['participant_id'] == subject_id]
+                
+                if not subject_row.empty:
+                    col_name = f'player{player_num}_pre_processing_channels_fixed'
+                    if col_name in subject_row.columns:
+                        value = subject_row[col_name].values[0]
+                        if pd.notna(value):
+                            channels = [ch.strip() for ch in str(value).split(',') if ch.strip()]
+                            raw.info['bads'] = channels
+                            print(f"   Set bad channels: {channels}")
+            except Exception as e:
+                print(f"   Error loading bad channels: {e}")
     # =========================================================================
-    # 2. APPLY MONTAGE
+    # 3. APPLY MONTAGE
     # =========================================================================
     try:
         # Define EEG channels (First 64 are now standard names)
@@ -197,7 +284,7 @@ def run_preprocessing(raw, target_rate=256):
         print(f"   -> ❌ WARNING: Could not set montage. ICA Topologies will NOT work. Error: {e}")
 
     # =========================================================================
-    # 3. INTERPOLATION
+    # 4. INTERPOLATION
     # =========================================================================
     try:
         # Use only EEG channels for std calculation
@@ -213,15 +300,16 @@ def run_preprocessing(raw, target_rate=256):
             # Convert local pick indices to channel names
             bad_names = [raw.ch_names[picks[i]] for i in bad_indices_local]
             
-            raw.info['bads'] = bad_names
-            if raw.info['bads']:
-                print(f"   -> Interpolating {len(raw.info['bads'])} bad channels: {raw.info['bads']}")
-                raw.interpolate_bads(reset_bads=True, verbose=False)
+        if raw.info['bads']:
+            print(f"   Interpolating {len(raw.info['bads'])} bad channels...")
+            raw.interpolate_bads(reset_bads=True, verbose=False)
+            
     except Exception as e:
-        print(f"   -> Interpolation skipped/failed: {e}")
+        print(f"   Montage/Interpolation error: {e}")
+
 
     # =========================================================================
-    # 4. CAR & RESAMPLE
+    # 5. CAR & RESAMPLE
     # =========================================================================
     print("   -> Applying CAR...")
     raw.set_eeg_reference('average', projection=False, verbose=False)
