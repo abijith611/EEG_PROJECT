@@ -1,152 +1,162 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.patches import Rectangle
 
-def plot_decoding_with_confidence(times, mean_scores, std_scores, title="Decoding with Confidence"):
+def plot_decoding_with_confidence(time_axis, mean_scores, std_scores, title, chance_level=33.33):
     """
-    Plot decoding accuracy with confidence intervals from standard deviation.
+    Plot decoding accuracy over time with confidence intervals and phase shading
+    Similar to Figure 2/3 in the paper
+    
+    Parameters:
+    time_axis: array of time points
+    mean_scores: mean decoding accuracy per time bin
+    std_scores: standard deviation per time bin
+    title: plot title
+    chance_level: chance level for decoding (33.33% for 3 classes)
     """
-    plt.figure(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 6))
     
-    # Plot mean accuracy
-    plt.plot(times, mean_scores, color='#2c3e50', linewidth=2, label='Mean Accuracy')
+    # Define phase boundaries and colors (as in paper)
+    phases = [
+        ('Decision', 0, 2, 'orange', 0.1),
+        ('Response', 2, 4, 'red', 0.1),
+        ('Feedback', 4, 5, 'purple', 0.1)
+    ]
     
-    # Plot confidence interval (mean ± std)
-    plt.fill_between(times, mean_scores - std_scores, mean_scores + std_scores,
-                     color='#2c3e50', alpha=0.2, label='± Std Dev')
+    # Add phase background shading
+    for phase_name, start, end, color, alpha in phases:
+        ax.axvspan(start, end, alpha=alpha, color=color, label=phase_name if phase_name == 'Decision' else "")
     
-    # Chance level
-    plt.axhline(33.33, color='r', linestyle='--', label='Chance (33%)')
+    # Plot mean decoding accuracy with confidence interval
+    ax.plot(time_axis, mean_scores, 'k-', linewidth=2, label='Decoding Accuracy')
+    ax.fill_between(time_axis, 
+                    mean_scores - std_scores, 
+                    mean_scores + std_scores, 
+                    alpha=0.3, color='gray')
     
-    # Phase separators
-    plt.axvline(2.0, color='k', linestyle='--', linewidth=1.5, alpha=0.5)
-    plt.axvline(4.0, color='k', linestyle='--', linewidth=1.5, alpha=0.5)
+    # Add chance level line
+    ax.axhline(y=chance_level, color='blue', linestyle='--', linewidth=1.5, 
+               label=f'Chance ({chance_level:.1f}%)')
     
-    # Labels
-    plt.text(1.0, 35, "DECISION", ha='center', fontsize=12, fontweight='bold', alpha=0.5)
-    plt.text(3.0, 35, "RESPONSE", ha='center', fontsize=12, fontweight='bold', alpha=0.5)
-    plt.text(4.5, 35, "FEEDBACK", ha='center', fontsize=12, fontweight='bold', alpha=0.5)
+    # Add significance markers (simplified - paper uses Bayes Factors)
+    # For bins where accuracy > chance_level + 2*std, add asterisk
+    sig_threshold = chance_level + 2 * np.mean(std_scores)
+    sig_indices = np.where(mean_scores > sig_threshold)[0]
+    if len(sig_indices) > 0:
+        ax.plot(time_axis[sig_indices], mean_scores[sig_indices], 'r*', 
+                markersize=8, label='Above Chance')
     
-    plt.title(f"{title}")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Decoding Accuracy (%)")
-    plt.ylim(25, 100)
-    plt.grid(True, linestyle=':', alpha=0.6)
-    plt.legend(loc='upper right')
-    plt.show(block=False)
+    # Set plot properties
+    ax.set_xlabel('Time (s)', fontsize=12)
+    ax.set_ylabel('Decoding Accuracy (%)', fontsize=12)
+    ax.set_title(title, fontsize=14, fontweight='bold')
+    ax.set_xlim([0, 5])
+    ax.set_ylim([25, 75])  # Reasonable range for RPS decoding
+    
+    # Add phase labels at the top
+    ax2 = ax.twiny()
+    ax2.set_xlim(ax.get_xlim())
+    ax2.set_xticks([1, 3, 4.5])  # Middle of each phase
+    ax2.set_xticklabels(['Decision', 'Response', 'Feedback'], fontweight='bold')
+    ax2.spines['top'].set_visible(False)
+    ax2.xaxis.set_ticks_position('none')
+    
+    # Add grid and legend
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.legend(loc='upper right')
+    
+    plt.tight_layout()
+    return fig, ax
 
-def plot_fold_variability(fold_accuracies, times, title="Cross-Validation Fold Variability"):
+def plot_fold_variability(fold_accuracies, time_axis, title):
     """
-    Plot individual fold accuracies to show variability across folds.
+    Plot variability across cross-validation folds
     """
-    plt.figure(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(10, 5))
     
-    n_folds = fold_accuracies.shape[0]
-    
-    # Plot each fold
-    for fold in range(n_folds):
-        plt.plot(times, fold_accuracies[fold, :] * 100, 
-                alpha=0.3, linewidth=0.8, color='gray')
+    # Plot each fold as semi-transparent line
+    for i, fold_acc in enumerate(fold_accuracies):
+        ax.plot(time_axis, fold_acc, alpha=0.3, linewidth=0.5)
     
     # Plot mean across folds
-    mean_across_folds = np.mean(fold_accuracies, axis=0) * 100
-    std_across_folds = np.std(fold_accuracies, axis=0) * 100
+    mean_acc = np.mean(fold_accuracies, axis=0)
+    std_acc = np.std(fold_accuracies, axis=0)
     
-    plt.plot(times, mean_across_folds, color='navy', linewidth=2, 
-             label=f'Mean (N={n_folds} folds)')
+    ax.plot(time_axis, mean_acc, 'k-', linewidth=2, label='Mean')
+    ax.fill_between(time_axis, mean_acc - std_acc, mean_acc + std_acc, 
+                    alpha=0.3, color='gray', label='±1 SD')
     
-    # Plot chance level
-    plt.axhline(33.33, color='r', linestyle='--', label='Chance (33%)')
+    ax.axhline(y=33.33, color='blue', linestyle='--', linewidth=1.5, label='Chance')
     
-    # Phase separators
-    plt.axvline(2.0, color='k', linestyle='--', linewidth=1.5, alpha=0.5)
-    plt.axvline(4.0, color='k', linestyle='--', linewidth=1.5, alpha=0.5)
+    ax.set_xlabel('Time (s)', fontsize=12)
+    ax.set_ylabel('Accuracy (%)', fontsize=12)
+    ax.set_title(f'{title} - Fold Variability', fontsize=14)
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    ax.set_xlim([0, 5])
     
-    plt.title(f"{title} - Individual Fold Performance")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Accuracy (%)")
-    plt.ylim(20, 100)
-    plt.legend(loc='upper right')
-    plt.grid(True, linestyle=':', alpha=0.6)
-    plt.show(block=False)
-    
-    # Print statistics
-    print(f"Fold Statistics:")
-    print(f"  Mean accuracy across all folds: {np.mean(mean_across_folds):.2f}%")
-    print(f"  Std across folds (temporal mean): {np.mean(std_across_folds):.2f}%")
-    print(f"  Max variability at bin {np.argmax(std_across_folds)}: {np.max(std_across_folds):.2f}%")
+    plt.tight_layout()
+    return fig
 
 def plot_grand_average_with_stats(group_results, player_num):
     """
-    Enhanced grand average plot with statistics across subjects.
+    Plot grand average across subjects with statistical information
+    Similar to paper's group-level analysis
     """
     if not group_results[player_num]:
-        print(f"No data to plot for Player {player_num}")
-        return
+        return None
     
-    # Extract data
-    all_mean_scores = []
-    all_std_scores = []
-    
+    all_means = []
     for result in group_results[player_num]:
-        all_mean_scores.append(result['mean_scores'])
-        all_std_scores.append(result['std_scores'])
+        if 'mean_scores' in result:
+            all_means.append(result['mean_scores'])
     
-    # Convert to arrays
-    mean_matrix = np.array(all_mean_scores)  # (N_subjects, 20_bins)
-    std_matrix = np.array(all_std_scores)    # (N_subjects, 20_bins)
+    if not all_means:
+        return None
     
+    mean_matrix = np.array(all_means)
     n_subjects = mean_matrix.shape[0]
     
-    # Calculate grand statistics
+    # Calculate grand mean and SEM
     grand_mean = np.mean(mean_matrix, axis=0)
-    grand_std = np.std(mean_matrix, axis=0)  # Between-subject variability
-    sem = grand_std / np.sqrt(n_subjects)    # Standard error of the mean
+    sem = np.std(mean_matrix, axis=0) / np.sqrt(n_subjects)
     
-    # Create time axis
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
+    
+    # Plot 1: Grand average with SEM
     time_axis = np.linspace(0, 5.0, len(grand_mean))
     
-    # Plot
-    plt.figure(figsize=(12, 6))
+    # Add phase shading
+    phases = [('Decision', 0, 2, 'orange', 0.1),
+              ('Response', 2, 4, 'red', 0.1),
+              ('Feedback', 4, 5, 'purple', 0.1)]
     
-    # Plot individual subjects (thin lines)
-    for sub_idx in range(n_subjects):
-        plt.plot(time_axis, mean_matrix[sub_idx, :], 
-                alpha=0.2, linewidth=0.5, color='gray')
+    for phase_name, start, end, color, alpha in phases:
+        ax1.axvspan(start, end, alpha=alpha, color=color)
     
-    # Plot grand mean
-    plt.plot(time_axis, grand_mean, color='navy', linewidth=3, 
-             label=f'Grand Mean (N={n_subjects})')
+    ax1.plot(time_axis, grand_mean, 'k-', linewidth=2, label=f'Grand Mean (n={n_subjects})')
+    ax1.fill_between(time_axis, grand_mean - sem, grand_mean + sem, 
+                     alpha=0.3, color='gray', label='SEM')
     
-    # Plot confidence interval (SEM)
-    plt.fill_between(time_axis, grand_mean - sem, grand_mean + sem,
-                     color='navy', alpha=0.2, label='± SEM')
+    ax1.axhline(y=33.33, color='blue', linestyle='--', linewidth=1.5, label='Chance')
+    ax1.set_ylabel('Decoding Accuracy (%)', fontsize=12)
+    ax1.set_title(f'Player {player_num} - Grand Average Decoding', fontsize=14, fontweight='bold')
+    ax1.legend(loc='upper right')
+    ax1.grid(True, alpha=0.3)
+    ax1.set_xlim([0, 5])
+    ax1.set_ylim([25, 70])
     
-    # Chance level
-    plt.axhline(33.33, color='r', linestyle='--', label='Chance (33%)')
+    # Plot 2: Subject variability heatmap
+    im = ax2.imshow(mean_matrix, aspect='auto', cmap='viridis',
+                   extent=[0, 5, 0, n_subjects], interpolation='nearest')
+    ax2.set_xlabel('Time (s)', fontsize=12)
+    ax2.set_ylabel('Subject Index', fontsize=12)
+    ax2.set_title('Individual Subject Decoding Patterns', fontsize=12)
+    plt.colorbar(im, ax=ax2, label='Accuracy (%)')
     
-    # Phase separators
-    plt.axvline(2.0, color='k', linestyle='--', linewidth=1.5, alpha=0.5)
-    plt.axvline(4.0, color='k', linestyle='--', linewidth=1.5, alpha=0.5)
+    # Add phase dividers
+    for phase_boundary in [2, 4]:
+        ax2.axvline(x=phase_boundary, color='white', linestyle='--', linewidth=1)
     
-    plt.title(f"Grand Average Decoding Accuracy: Player {player_num}")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Accuracy (%)")
-    plt.ylim(20, 100)
-    plt.legend(loc='upper right')
-    plt.grid(True, linestyle=':', alpha=0.4)
-    plt.show(block=False)
-    
-    # Print statistics
-    print(f"\nGrand Average Statistics - Player {player_num}:")
-    print(f"  N subjects: {n_subjects}")
-    print(f"  Overall mean accuracy: {np.mean(grand_mean):.2f}% ± {np.mean(sem):.2f}%")
-    print(f"  Peak accuracy: {np.max(grand_mean):.2f}% at {time_axis[np.argmax(grand_mean)]:.2f}s")
-    
-    # Statistical test (simple t-test against chance)
-    from scipy import stats
-    t_stat, p_value = stats.ttest_1samp(mean_matrix, 33.33, axis=0)
-    significant_bins = np.where(p_value < 0.05)[0]
-    print(f"  Significant above chance at {len(significant_bins)} bins (p<0.05)")
-    if len(significant_bins) > 0:
-        print(f"    Bins: {significant_bins}")
-        print(f"    Times: {time_axis[significant_bins]}s")
+    plt.tight_layout()
+    return fig

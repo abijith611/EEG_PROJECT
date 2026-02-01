@@ -102,74 +102,61 @@ def plot_comparisons(results, player_num):
     plt.show(block=False)
 
 
-def plot_grand_average_comparison(group_data, player_num):
+def plot_grand_average_comparison(group_results, group_name):
     """
-    Plots the grand average of the comparative analysis (4 lines) with SEM shading.
-    group_data: Dictionary containing lists of scores for each condition.
-                e.g., {'Own Current': [sub1_arr, sub2_arr...], ...}
+    Plot comparative decoding results for winners vs losers
+    Similar to Figure 3 in the paper
     """
-    print(f"--- Plotting Grand Average Comparison for Player {player_num} ---")
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    fig.suptitle(f'{group_name} Group - Comparative Decoding Analysis', 
+                 fontsize=16, fontweight='bold')
     
-    # Check if we have data (look at the first key's list)
-    first_key = next(iter(group_data))
-    if not group_data[first_key]:
-        print("   -> No data to plot.")
-        return
-
-    # Create Time Axis (Assume 20 bins = 5.0s)
-    n_bins = len(group_data[first_key][0])
-    time_axis = np.linspace(0, 5.0, n_bins)
+    keys = ['Own Current', 'Opponent Current', 'Own Previous', 'Opponent Previous']
+    titles = ['A) Player Response', 'B) Opponent Response', 
+              'C) Player Previous', 'D) Opponent Previous']
     
-    plt.figure(figsize=(12, 6))
+    time_axis = np.linspace(0, 5.0, 20)  # 20 time bins
     
-    # Define Colors & Styles
-    styles = {
-        'Own Current':      ('blue', '-'),
-        'Opponent Current': ('orange', '-'),
-        'Own Previous':     ('green', '--'),
-        'Opponent Previous':('red', '--')
-    }
+    # Define phase boundaries
+    phases = [('Decision', 0, 2, 'orange', 0.1),
+              ('Response', 2, 4, 'red', 0.1),
+              ('Feedback', 4, 5, 'purple', 0.1)]
     
-    # Plot each condition
-    for name, score_list in group_data.items():
-        if not score_list: continue
+    for idx, (ax, key, title) in enumerate(zip(axes.flatten(), keys, titles)):
+        # Add phase shading
+        for phase_name, start, end, color, alpha in phases:
+            ax.axvspan(start, end, alpha=alpha, color=color)
         
-        # Convert list of arrays to Matrix -> (N_Subjects, N_Bins)
-        mat = np.array(score_list)
-        n_subs = mat.shape[0]
+        # Plot each condition if data exists
+        if key in group_results and group_results[key]:
+            all_scores = np.array(group_results[key])
+            
+            # Calculate mean and SEM
+            mean_scores = np.mean(all_scores, axis=0)
+            sem_scores = np.std(all_scores, axis=0) / np.sqrt(len(all_scores))
+            
+            # Plot with confidence interval
+            ax.plot(time_axis, mean_scores, 'k-', linewidth=2, label=f'{key} (n={len(all_scores)})')
+            ax.fill_between(time_axis, mean_scores - sem_scores, mean_scores + sem_scores, 
+                           alpha=0.3, color='gray')
         
-        # Calculate Mean and Standard Error
-        mean_scores = np.mean(mat, axis=0)
-        sem_scores = np.std(mat, axis=0) / np.sqrt(n_subs)
+        # Add chance level and reference lines
+        ax.axhline(y=33.33, color='blue', linestyle='--', linewidth=1.5, label='Chance')
         
-        color, ls = styles.get(name, ('black', '-'))
+        # Add phase boundary lines
+        for boundary in [2, 4]:
+            ax.axvline(x=boundary, color='black', linestyle=':', linewidth=0.5, alpha=0.5)
         
-        # Plot Mean Line
-        plt.plot(time_axis, mean_scores, label=f"{name}", color=color, linestyle=ls, linewidth=2)
+        # Set plot properties
+        ax.set_xlabel('Time (s)', fontsize=10)
+        ax.set_ylabel('Decoding Accuracy (%)', fontsize=10)
+        ax.set_title(title, fontsize=12, fontweight='bold', loc='left')
+        ax.set_xlim([0, 5])
+        ax.set_ylim([20, 60])
+        ax.grid(True, alpha=0.3)
         
-        # Plot Shaded Error Region
-        plt.fill_between(time_axis, mean_scores - sem_scores, mean_scores + sem_scores, 
-                         color=color, alpha=0.15)
-
-    # Chance Level
-    plt.axhline(33.33, color='r', linestyle='--', label='Chance (33%)')
+        if idx == 0:  # Only show legend in first plot
+            ax.legend(loc='upper right', fontsize=9)
     
-    # --- PHASE SEPARATORS ---
-    # Phase 1 (Decision) ends at 2.0s
-    plt.axvline(2.0, color='k', linestyle='--', linewidth=1.5, alpha=0.5)
-    plt.text(1.0, 39, "DECISION", ha='center', fontsize=12, fontweight='bold', alpha=0.5)
-    
-    # Phase 2 (Response) ends at 4.0s (2.0 + 2.0)
-    plt.axvline(4.0, color='k', linestyle='--', linewidth=1.5, alpha=0.5)
-    plt.text(3.0, 39, "RESPONSE", ha='center', fontsize=12, fontweight='bold', alpha=0.5)
-    
-    # Phase 3 (Feedback) ends at 5.0s
-    plt.text(4.5, 39, "FEEDBACK", ha='center', fontsize=12, fontweight='bold', alpha=0.5)
-    
-    plt.title(f"Grand Average Comparative Decoding: Player {player_num} (N={n_subs})")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Accuracy (%)")
-    plt.ylim(30, 40)
-    plt.legend(loc='lower right')
-    plt.grid(True, linestyle=':', alpha=0.6)
-    plt.show(block=False)
+    plt.tight_layout()
+    return fig
