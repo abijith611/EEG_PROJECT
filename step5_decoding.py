@@ -1,120 +1,108 @@
 import numpy as np
-import random
-import step4_pseudotrials  # Reuse the pseudo-trial creation logic
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
-from mne.decoding import SlidingEstimator, cross_val_multiscore
+from sklearn.model_selection import StratifiedKFold
 
-# step5_decoding.py - UPDATE EXISTING FUNCTION
-
-def run_svm_decoding_with_pseudotrials(X_pseudo, y_pseudo, n_folds=10):
+# =================================================================
+# HELPER: Generate Pseudo-Trials (Internal Use)
+# =================================================================
+def create_pseudo_trials_subset(X, y, n_average=4, n_repeats=20, random_seed=None):
     """
-    UPDATED: Now includes pseudo-trials like MATLAB paper
+    Creates pseudo-trials from a specific SUBSET of data.
+    """
+    rng = np.random.RandomState(random_seed)
+    unique_classes = np.unique(y)
+    
+    X_pseudo = []
+    y_pseudo = []
+    
+    for cls in unique_classes:
+        # Get indices of all available trials for this class in this subset
+        cls_indices = np.where(y == cls)[0]
+        
+        # If we don't have enough trials to average, skip
+        if len(cls_indices) < n_average:
+            continue
+            
+        for _ in range(n_repeats):
+            # Randomly select 'n_average' trials
+            choices = rng.choice(cls_indices, size=n_average, replace=False)
+            
+            # Average them to create ONE pseudo-trial
+            X_pseudo.append(np.mean(X[choices], axis=0))
+            y_pseudo.append(cls)
+            
+    if len(X_pseudo) == 0:
+        return np.array([]), np.array([])
+        
+    return np.array(X_pseudo), np.array(y_pseudo)
+
+# =================================================================
+# MAIN DECODING FUNCTION
+# =================================================================
+def run_svm_decoding_with_pseudotrials(X_raw, y_raw, n_folds=10, n_average=4, n_repeats=20):
+    """
+    Performs Stratified Cross-Validation with Pseudo-Trials generated INSIDE the loop.
     
     Parameters:
-    - epochs_binned: (n_trials, n_channels, n_time_bins)
-    - labels: (n_trials,) with values 1, 2, or 3
-    - n_folds: 10-fold CV (paper uses 10)
-    - n_average: Average 4 trials (paper uses 4)
-    - n_repeats: 20 repeats per class (paper uses 20)
+    - X_raw: The BINNED single trials (n_trials, n_channels, n_time_bins)
+    - y_raw: The labels for single trials
     """
-    print("\n" + "="*60)
-    print("   SVM DECODING WITH PSEUDO-TRIALS (Paper's Method)")
-    print("="*60)
+    # 1. Setup
+    n_trials, n_channels, n_time_bins = X_raw.shape
     
-    # Step 1: Create pseudo-trials (MATLAB's method)
+    # Use Linear SVM with balanced class weights
+    clf = make_pipeline(StandardScaler(), SVC(kernel='linear', C=1.0, class_weight='balanced'))
     
-    
-    # Step 2: Setup SVM (Your novelty - paper uses LDA)
-    from sklearn.pipeline import make_pipeline
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.svm import SVC
-    from sklearn.model_selection import StratifiedKFold
-    
-    svm_pipeline = make_pipeline(
-        StandardScaler(),
-        SVC(kernel='linear', C=1.0, random_state=42)
-    )
-    
-    # Step 3: YOUR NOVELTY - Stratified 10-fold CV (paper uses custom chunks)
+    # Stratified K-Fold
     skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
     
-    # Store results for each time bin
-    n_time_bins = X_pseudo.shape[2]
     fold_accuracies = np.zeros((n_folds, n_time_bins))
     
-    print(f"\n  Running {n_folds}-fold stratified cross-validation...")
-    print(f"  Pseudo-trials shape: {X_pseudo.shape}")
+    print(f"   Starting {n_folds}-fold CV on {n_trials} real trials...")
     
-    # Step 4: Cross-validation
-    for fold_idx, (train_idx, test_idx) in enumerate(skf.split(X_pseudo, y_pseudo)):
-        X_train, X_test = X_pseudo[train_idx], X_pseudo[test_idx]
-        y_train, y_test = y_pseudo[train_idx], y_pseudo[test_idx]
+    # 2. Cross-Validation Loop
+    for fold_idx, (train_idx, test_idx) in enumerate(skf.split(X_raw, y_raw)):
         
-        # Decode each time bin separately
-        for time_bin in range(n_time_bins):
-            svm_pipeline.fit(X_train[:, :, time_bin], y_train)
-            accuracy = svm_pipeline.score(X_test[:, :, time_bin], y_test)
-            fold_accuracies[fold_idx, time_bin] = accuracy
+        # A. Split the REAL trials
+        X_train_real, y_train_real = X_raw[train_idx], y_raw[train_idx]
+        X_test_real, y_test_real = X_raw[test_idx], y_raw[test_idx]
         
-        if (fold_idx + 1) % 2 == 0:  # Print every 2 folds
-            print(f"    Fold {fold_idx+1}/{n_folds} complete")
-    
-    # Calculate mean and standard error
-    mean_accuracy = np.mean(fold_accuracies, axis=0) * 100  # Convert to percentage
-    std_accuracy = np.std(fold_accuracies, axis=0) * 100
-    times = np.arange(n_time_bins)  # Bin indices (0-19)
-    
-    # Print summary
-    print(f"\n  Decoding complete!")
-    print(f"  Mean accuracy: {np.mean(mean_accuracy):.2f}% ± {np.mean(std_accuracy):.2f}%")
-    print(f"  Peak accuracy: {np.max(mean_accuracy):.2f}% at bin {np.argmax(mean_accuracy)}")
-    
-    return times, mean_accuracy, std_accuracy, fold_accuracies
+        # B. Generate Pseudo-Trials for TRAINING
+        X_train_pseudo, y_train_pseudo = create_pseudo_trials_subset(
+            X_train_real, y_train_real, 
+            n_average=n_average, n_repeats=n_repeats, 
+            random_seed=fold_idx # Different seed per fold
+        )
+        
+        # C. Generate Pseudo-Trials for TESTING
+        # Note: We apply the same SNR boost (averaging) to the test set
+        X_test_pseudo, y_test_pseudo = create_pseudo_trials_subset(
+            X_test_real, y_test_real, 
+            n_average=n_average, n_repeats=n_repeats, 
+            random_seed=fold_idx + 100 
+        )
+        
+        # Safety check
+        if len(X_train_pseudo) == 0 or len(X_test_pseudo) == 0:
+            continue
 
-# Keep your old function for comparison
-def run_svm_decoding_original(data, custom_labels=None):
-    """
-    Your original function - keep for debugging
-    """
-    print("--- Running original SVM (no pseudo-trials) ---")
+        # D. Decode Time-by-Time
+        for t in range(n_time_bins):
+            # Extract data for this time bin (Trials x Channels)
+            X_tr = X_train_pseudo[:, :, t]
+            X_te = X_test_pseudo[:, :, t]
+            
+            # Train and Score
+            clf.fit(X_tr, y_train_pseudo)
+            fold_accuracies[fold_idx, t] = clf.score(X_te, y_test_pseudo)
+            
+    # 3. Aggregate Results
+    mean_scores = np.mean(fold_accuracies, axis=0) * 100
+    std_scores = np.std(fold_accuracies, axis=0) * 100
+    times = np.arange(n_time_bins) # Dummy time axis
     
-    # 1. HANDLE INPUT TYPE
-    # If it's an MNE Epochs object, extract data and labels automatically
-    if hasattr(data, 'get_data'):
-        X = data.get_data()
-        if custom_labels is None:
-            y = data.events[:, -1]
-        else:
-            y = custom_labels
-        # Get time points for plotting
-        times = data.times
-        
-    # If it's a NumPy Array (from Step 4), use it directly
-    else:
-        X = data # (Trials, Channels, Bins)
-        if custom_labels is None:
-            raise ValueError("❌ Error: When passing a NumPy array (from Step 4), you MUST provide 'custom_labels'.")
-        y = custom_labels
-        # Create a dummy time axis (0, 1, 2...) since real time is lost in binning
-        times = np.arange(X.shape[2])
-
-    # 2. SETUP SVM
-    clf = make_pipeline(StandardScaler(), SVC(kernel='linear'))
+    print(f"   -> Average Accuracy: {np.mean(mean_scores):.2f}%")
     
-    # 3. RUN SLIDING ESTIMATOR
-    # n_jobs=-1 uses all CPU cores for speed
-    print(f"   Data Shape: {X.shape}, Labels Shape: {y.shape}")
-    slider = SlidingEstimator(clf, n_jobs=-1, scoring='accuracy', verbose=False)
-    
-    # Run 5-fold Cross-Validation
-    try:
-        scores = cross_val_multiscore(slider, X, y, cv=5, n_jobs=-1)
-        # Average across the 5 folds -> Result: (Time_Points,)
-        mean_scores = np.mean(scores, axis=0) * 100
-        return times, mean_scores
-        
-    except Exception as e:
-        print(f"❌ SVM Failed: {e}")
-        return None, None
+    return times, mean_scores, std_scores, fold_accuracies
