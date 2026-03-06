@@ -3,13 +3,14 @@ Decoding script:
   - Decode own & opponent's response for current & previous trial
   - Uses Time-binning, Pseudo-trial averaging, and Temporal + Spatial Searchlight
 
-Libraries needed: mne, numpy, pandas, scikit-learn
+Libraries needed: mne, numpy, pandas, scikit-learn, scipy
 """
 
 import os
 import mne
 import numpy as np
 import pandas as pd
+import scipy.io
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.model_selection import StratifiedKFold, LeaveOneGroupOut, cross_val_score
 import pickle
@@ -18,6 +19,28 @@ path_to_data = 'project/ds006761'
 pair_ids = list(range(1, 10)) + list(range(11, 23)) + list(range(25, 35))
 num_trials = 480
 num_chan = 64
+
+# Mapping from Biosemi labels (A1..B32) to standard 10‑20 names
+biosemi_to_std = {
+    'A1': 'Fp1', 'A2': 'Fpz', 'A3': 'Fp2', 'A4': 'AF7', 'A5': 'AF3', 'A6': 'AFz', 'A7': 'AF4', 'A8': 'AF8',
+    'A9': 'F7', 'A10': 'F5', 'A11': 'F3', 'A12': 'F1', 'A13': 'Fz', 'A14': 'F2', 'A15': 'F4', 'A16': 'F6',
+    'A17': 'F8', 'A18': 'FT7', 'A19': 'FC5', 'A20': 'FC3', 'A21': 'FC1', 'A22': 'FCz', 'A23': 'FC2', 'A24': 'FC4',
+    'A25': 'FC6', 'A26': 'FT8', 'A27': 'T7', 'A28': 'C5', 'A29': 'C3', 'A30': 'C1', 'A31': 'Cz', 'A32': 'C2',
+    'B1': 'C4', 'B2': 'C6', 'B3': 'T8', 'B4': 'TP7', 'B5': 'CP5', 'B6': 'CP3', 'B7': 'CP1', 'B8': 'CPz',
+    'B9': 'CP2', 'B10': 'CP4', 'B11': 'CP6', 'B12': 'TP8', 'B13': 'P7', 'B14': 'P5', 'B15': 'P3', 'B16': 'P1',
+    'B17': 'Pz', 'B18': 'P2', 'B19': 'P4', 'B20': 'P6', 'B21': 'P8', 'B22': 'PO7', 'B23': 'PO5', 'B24': 'PO3',
+    'B25': 'POz', 'B26': 'PO4', 'B27': 'PO6', 'B28': 'PO8', 'B29': 'O1', 'B30': 'Oz', 'B31': 'O2', 'B32': 'Iz'
+}
+
+# Generate ordered list of standard channel names (A1..A32, B1..B32)
+std_names_ordered = [biosemi_to_std[f'A{i}'] for i in range(1,33)] + [biosemi_to_std[f'B{i}'] for i in range(1,33)]
+
+# Load the original BioSemi electrode positions
+biosemi_mat = scipy.io.loadmat('biosemi64.mat')   # adjust path if needed
+orig_coords = biosemi_mat['biosemi64']            # shape (64, 3)
+
+# Create a dictionary mapping channel name to its 3D position
+pos_dict = {name: orig_coords[i] for i, name in enumerate(std_names_ordered)}
 
 def get_time_bins(epochs):
     times = epochs.times
@@ -134,12 +157,11 @@ def run_decoding(max_pairs=None):
                 continue
                 
             epochs = mne.read_epochs(epoch_file, preload=True, verbose=False)
-            
+
+            # Assign montage – no renaming needed
             montage = mne.channels.make_standard_montage('biosemi64')
-            mapping = {old: new for old, new in zip(epochs.ch_names[:64], montage.ch_names[:64])}
-            epochs.rename_channels(mapping)
             epochs.set_montage(montage, on_missing='ignore')
-            
+
             epochs.set_eeg_reference('average', projection=False, verbose=False)
             
             rem_idx = np.arange(0, 480, 40)
@@ -149,11 +171,33 @@ def run_decoding(max_pairs=None):
             epochs_sel = epochs[sel_idx]
             
             binned_data = get_time_bins(epochs_sel)
-            adj_matrix, ch_names = mne.channels.find_ch_adjacency(epochs_sel.info, ch_type='eeg')
+            
+            # --- Build custom neighbor lists using original BioSemi coordinates ---
+            ch_names_epoch = epochs_sel.ch_names
+            # Ensure all channels have positions
+            missing = [ch for ch in ch_names_epoch if ch not in pos_dict]
+            if missing:
+                raise ValueError(f"Missing positions for channels: {missing}")
+            
+            n_chan = len(ch_names_epoch)
+            dist_mat = np.zeros((n_chan, n_chan))
+            for i, ch1 in enumerate(ch_names_epoch):
+                for j, ch2 in enumerate(ch_names_epoch):
+                    dist_mat[i, j] = np.linalg.norm(pos_dict[ch1] - pos_dict[ch2])
+            
+            # For each channel, find the 3 closest other channels (excluding itself)
+            neighbor_lists = []
+            for i in range(n_chan):
+                distances = dist_mat[i].copy()
+                distances[i] = np.inf          # exclude self
+                closest_3 = np.argsort(distances)[:3]   # indices of 3 nearest neighbours
+                neighbor_list = [i] + list(closest_3)   # include the center channel
+                neighbor_lists.append(neighbor_list)
+            # --------------------------------------------------------------
             
             decoding_accuracy = []
             searchlight_acc = []
-            targets_map = [0, 1, 3, 4] 
+            targets_map = [0, 1, 3, 4]   # columns in behav_data: self, other, selfp, otherp
             
             for test_idx in targets_map:
                 y = behav_data[:, test_idx]
@@ -166,9 +210,9 @@ def run_decoding(max_pairs=None):
                     searchlight_acc.append(np.full((num_chan, 20), np.nan))
                     continue
                 
-                # Apply Pseudo-trial averaging
+                # Apply Pseudo-trial averaging (using fixed seed to match MATLAB)
                 X_pseudo, y_pseudo, chunks_pseudo = create_pseudo_trials(
-                    X_valid, y_valid, n_splits=10, count=4, repeats=20, random_state=1 # Fixed random state for reproducibility
+                    X_valid, y_valid, n_splits=10, count=4, repeats=20, random_state=1
                 )
                 
                 # Use LeaveOneGroupOut with the chunks generated by the pseudo-trial function
@@ -183,12 +227,9 @@ def run_decoding(max_pairs=None):
                 
                 sl_acc = np.zeros((num_chan, 20))
                 
+                # Searchlight using custom neighbour lists
                 for ch in range(num_chan):
-                    row = adj_matrix[ch]
-                    row_dense = row.toarray().flatten() if hasattr(row, 'toarray') else np.asarray(row).flatten()
-                    neighbors = np.where(row_dense)[0]
-                    ch_idx = [ch] + [n for n in neighbors if n != ch]
-                    
+                    ch_idx = neighbor_lists[ch]   # list of indices (including center)
                     for t in range(20):
                         X_t_sl = X_pseudo[:, ch_idx, t]
                         sl_acc[ch, t] = cross_val_score(clf, X_t_sl, y_pseudo, groups=chunks_pseudo, cv=cv).mean()
@@ -196,4 +237,12 @@ def run_decoding(max_pairs=None):
                 
             out_file = os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding.pkl')
             with open(out_file, 'wb') as f:
-                pickle.dump({'decoding': decoding_accuracy, 'searchlight': searchlight_acc, 'ch_names': ch_names}, f)
+                pickle.dump({'decoding': decoding_accuracy, 'searchlight': searchlight_acc, 'ch_names': ch_names_epoch}, f)
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--test_pairs', type=int, default=None,
+                        help='Number of pairs to process (for testing)')
+    args = parser.parse_args()
+    run_decoding(max_pairs=args.test_pairs)
