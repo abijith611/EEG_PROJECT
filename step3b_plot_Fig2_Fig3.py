@@ -129,8 +129,15 @@ def plot_decoding(max_pairs=None):
         ci = np.nanstd(data_t * 100, axis=0) / np.sqrt(num_pairs_run * 2) * 1.96
         
         ax_main.axhline(33.33, color='k', linestyle='--', zorder=0)
-        ax_main.plot(x_axis_time, data_mean, 'k-', linewidth=2)
-        ax_main.fill_between(x_axis_time, data_mean - ci, data_mean + ci, color='gray', alpha=0.3)
+        # Decision (bins 0-7)
+        ax_main.plot(x_axis_time[:8], data_mean[:8], 'k-', linewidth=2)
+        ax_main.fill_between(x_axis_time[:8], data_mean[:8] - ci[:8], data_mean[:8] + ci[:8], color='gray', alpha=0.3)
+        # Response (bins 8-15)
+        ax_main.plot(x_axis_time[8:16], data_mean[8:16], 'k-', linewidth=2)
+        ax_main.fill_between(x_axis_time[8:16], data_mean[8:16] - ci[8:16], data_mean[8:16] + ci[8:16], color='gray', alpha=0.3)
+        # Feedback (bins 16-19)
+        ax_main.plot(x_axis_time[16:], data_mean[16:], 'k-', linewidth=2)
+        ax_main.fill_between(x_axis_time[16:], data_mean[16:] - ci[16:], data_mean[16:] + ci[16:], color='gray', alpha=0.3)
         
         ax_main.axvspan(0, 2, color='#EDB120', alpha=0.1)
         ax_main.axvspan(2, 4, color='#D95319', alpha=0.1)
@@ -191,9 +198,12 @@ def plot_decoding(max_pairs=None):
             for d, c, lbl in zip([data_win, data_los], ['#0072BD', '#77AC30'], ['Winners', 'Losers']):
                 mean_d = np.nanmean(d, axis=0)
                 ci_d = np.nanstd(d, axis=0) / np.sqrt(len(d)) * 1.96
-                ax_main.plot(x_axis_time, mean_d, color=c, linewidth=2, label=lbl)
-                ax_main.fill_between(x_axis_time, mean_d - ci_d, mean_d + ci_d, color=c, alpha=0.15)
-                ax_main.scatter(x_axis_time, mean_d, color=c, s=30)
+                # Plot segmented lines to match phase breaks
+                for start, end in [(0, 8), (8, 16), (16, 20)]:
+                    line_lbl = lbl if start == 0 else None  # Only label the first segment for the legend
+                    ax_main.plot(x_axis_time[start:end], mean_d[start:end], color=c, linewidth=2, label=line_lbl)
+                    ax_main.fill_between(x_axis_time[start:end], mean_d[start:end] - ci_d[start:end], mean_d[start:end] + ci_d[start:end], color=c, alpha=0.15)
+                    ax_main.scatter(x_axis_time[start:end], mean_d[start:end], color=c, s=30)
                 
             ax_main.axvspan(0, 2, color='#EDB120', alpha=0.1)
             ax_main.axvspan(2, 4, color='#D95319', alpha=0.1)

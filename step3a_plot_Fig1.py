@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import stats
+from scipy.stats import gaussian_kde
+import matplotlib.patches as mpatches
 
 path_to_data = 'project/ds006761'
 root_dir = 'EEG-PROJECT'
@@ -19,18 +21,25 @@ os.makedirs(plot_dir, exist_ok=True)
 pair_ids = list(range(1, 10)) + list(range(11, 23)) + list(range(25, 35))
 
 def draw_raincloud(ax, data_list, colors, x_labels):
-    """Custom function to draw raincloud plots matching the paper's daviolinplot."""
+    """Custom function to draw raincloud plots with extended KDE tails."""
     x_pos = np.arange(len(data_list))
     
-    # 1. Half-violins (Right side)
-    vparts = ax.violinplot(data_list, positions=x_pos, showmeans=False, showmedians=False, showextrema=False)
-    for i, pc in enumerate(vparts['bodies']):
-        pc.set_facecolor(colors[i])
-        pc.set_edgecolor('black')
-        pc.set_alpha(0.6)
-        # Clip the left half of the violin to make it right-sided
-        m = x_pos[i]
-        pc.get_paths()[0].vertices[:, 0] = np.clip(pc.get_paths()[0].vertices[:, 0], m, np.inf)
+    # 1. Half-violins (Right side) using custom KDE for extended tails
+    for i, data in enumerate(data_list):
+        y = data[~np.isnan(data)]
+        kde = gaussian_kde(y)
+        
+        # Extend the evaluation range to create the "tails"
+        y_min, y_max = y.min(), y.max()
+        y_range = y_max - y_min
+        y_eval = np.linspace(y_min - 0.3 * y_range, y_max + 0.3 * y_range, 200)
+        
+        # Evaluate KDE and scale width
+        x_eval = kde(y_eval)
+        x_eval = (x_eval / x_eval.max()) * 0.35  # 0.35 controls max width
+        
+        # Draw the right-sided half-violin
+        ax.fill_betweenx(y_eval, x_pos[i], x_pos[i] + x_eval, facecolor=colors[i], edgecolor='black', alpha=0.6)
 
     # 2. Boxplots ("candle bars")
     bp = ax.boxplot(data_list, positions=x_pos, widths=0.12, patch_artist=True,
@@ -42,7 +51,6 @@ def draw_raincloud(ax, data_list, colors, x_labels):
     # 3. Scatter points (Left side)
     for i, data in enumerate(data_list):
         y = data[~np.isnan(data)]
-        # Offset the x position to the left of the boxplot
         x = np.random.normal(loc=x_pos[i] - 0.2, scale=0.03, size=len(y))
         ax.scatter(x, y, color='black', alpha=0.4, s=15, edgecolors='none', zorder=1)
 
@@ -121,8 +129,9 @@ def plot_behavior(max_pairs=None):
     # Figure setup
     fig, axes = plt.subplots(2, 2, figsize=(12, 12), layout='constrained')
     
-    # Plot 1: Outcomes Raincloud
+# Plot 1: Outcomes Violin
     ax = axes[0, 0]
+    ax.set_title("Game outcome", loc='left', fontweight='bold')
     data_outcomes = [outcome_summary[:, 1], outcome_summary[:, 2], outcome_summary[:, 0]]
     draw_raincloud(ax, data_outcomes, ['#D95319', '#EDB120', '#7E2F8E'], ['Winner\nwins', 'Loser\nwins', 'Draw'])
     ax.axhline(33.33, color='k', linestyle='--', zorder=0)
@@ -131,6 +140,7 @@ def plot_behavior(max_pairs=None):
 
     # Plot 2: Ranked Resp Raincloud + Pie Insets
     ax = axes[0, 1]
+    ax.set_title("Response Played", loc='left', fontweight='bold')
     data_ranked = [ranked_resp[0, :], ranked_resp[1, :], ranked_resp[2, :]]
     draw_raincloud(ax, data_ranked, ['#B30000', '#E64D00', '#FFB300'], ['Most\nplayed', 'Mid\nplayed', 'Least\nplayed'])
     ax.axhline(33.33, color='k', linestyle='--', zorder=0)
@@ -142,17 +152,23 @@ def plot_behavior(max_pairs=None):
         rank_data = all_played_rank[i, :]
         counts = [np.sum(rank_data == 1), np.sum(rank_data == 2), np.sum(rank_data == 3)]
         ax_inset.pie(counts, labels=['R', 'P', 'S'], colors=rps_colors, textprops={'fontsize': 8})
+        # Add Pie Chart Legend (Vertical, tucked inside on the right)
+        import matplotlib.patches as mpatches
+        handles = [mpatches.Patch(color=c, label=l) for c, l in zip(rps_colors, ['Rock', 'Paper', 'Scissors'])]
+        ax.legend(handles=handles, loc='upper right', bbox_to_anchor=(0.98, 0.75), ncol=1, frameon=False, fontsize=10)
 
-    # Plot 3: Response Change Raincloud
+# Plot 3: Response Change (Switch rate)
     ax = axes[1, 0]
+    ax.set_title("Game-to-game response change", loc='left', fontweight='bold')
     data_change = [prop_change[0, :], prop_change[1, :], prop_change[2, :]]
     draw_raincloud(ax, data_change, ['#4DBEEE', '#77AC30', '#7E2F8E'], ['After\nwin', 'After\nloss', 'After\ndraw'])
     ax.axhline(66.67, color='k', linestyle='--', zorder=0)
     ax.set_ylabel('Percentage')
     ax.set_ylim(20, 103)
 
-    # Plot 4: Predictability (Markov Chain)
+# Plot 4: Predictability (Markov Chain)
     ax = axes[1, 1]
+    ax.set_title("Markov chain response predictability", loc='left', fontweight='bold')
     x_axis = np.arange(5, 101)
     
     valid_pred_acc = pred_acc[~np.isnan(pred_acc).all(axis=1)]
