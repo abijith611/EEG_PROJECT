@@ -11,7 +11,7 @@ import mne
 import numpy as np
 import pandas as pd
 import scipy.io
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import StratifiedKFold, LeaveOneGroupOut, cross_val_score
 import pickle
 
@@ -32,51 +32,88 @@ biosemi_to_std = {
     'B25': 'POz', 'B26': 'PO4', 'B27': 'PO6', 'B28': 'PO8', 'B29': 'O1', 'B30': 'Oz', 'B31': 'O2', 'B32': 'Iz'
 }
 
-# Generate ordered list of standard channel names (A1..A32, B1..B32)
 std_names_ordered = [biosemi_to_std[f'A{i}'] for i in range(1,33)] + [biosemi_to_std[f'B{i}'] for i in range(1,33)]
 
 # Load the original BioSemi electrode positions
-biosemi_mat = scipy.io.loadmat('biosemi64.mat')   # adjust path if needed
-orig_coords = biosemi_mat['biosemi64']            # shape (64, 3)
+try:
+    biosemi_mat = scipy.io.loadmat('biosemi64.mat')
+    orig_coords = biosemi_mat['biosemi64']
+    pos_dict = {name: orig_coords[i] for i, name in enumerate(std_names_ordered)}
+except Exception:
+    pos_dict = None
 
-# Create a dictionary mapping channel name to its 3D position
-pos_dict = {name: orig_coords[i] for i, name in enumerate(std_names_ordered)}
+
+class CosmoLDA(BaseEstimator, ClassifierMixin):
+    """
+    Exact replication of CoSMoMVPA's cosmo_classify_lda.
+    Unlike scikit-learn's shrinkage which blends with the diagonal based on variance,
+    this adds the regularization parameter directly to the diagonal of the pooled
+    covariance matrix as done in CoSMoMVPA. It also assumes equal class priors.
+    """
+    def __init__(self, reg=0.01):
+        self.reg = reg
+        
+    def fit(self, X, y):
+        self.classes_ = np.unique(y)
+        n_classes = len(self.classes_)
+        n_features = X.shape[1]
+        
+        self.means_ = np.zeros((n_classes, n_features))
+        
+        X_c = np.empty_like(X, dtype=float)
+        for i, c in enumerate(self.classes_):
+            idx = (y == c)
+            self.means_[i] = np.mean(X[idx], axis=0)
+            X_c[idx] = X[idx] - self.means_[i]
+            
+        # CoSMoMVPA pooled covariance matrix
+        cov = (X_c.T @ X_c) / (len(y) - n_classes)
+        
+        # Exact CoSMoMVPA regularization (add lambda directly to diagonal)
+        if self.reg > 0:
+            cov += self.reg * np.eye(n_features)
+            
+        self.cov_inv_ = np.linalg.pinv(cov)
+        return self
+        
+    def predict(self, X):
+        scores = np.zeros((X.shape[0], len(self.classes_)))
+        for i, c in enumerate(self.classes_):
+            mu = self.means_[i]
+            # CoSMoMVPA discriminant function (no log-prior term included)
+            scores[:, i] = X @ self.cov_inv_ @ mu - 0.5 * (mu @ self.cov_inv_ @ mu)
+        return self.classes_[np.argmax(scores, axis=1)]
+
 
 def get_time_bins(epochs):
     times = epochs.times
-    data = epochs.get_data()
+    data = epochs.get_data() * 1e6  # Convert to microvolts as in FieldTrip
     
-    # Masks for each phase
+    # 1. Slice into phases exactly like MATLAB's [latency]
     mask_A = (times >= -0.2) & (times <= 2.0)
     mask_B = (times >= 1.8) & (times <= 4.0)
     mask_C = (times >= 3.8) & (times <= 5.0)
     
-    # Corrected baselines mapping to the author's shifted time vectors
-    mask_base_A = (times >= -0.2) & (times <= 0)     
-    mask_base_B = (times >= 1.8) & (times <= 2.0)    
-    mask_base_C = (times >= 3.8) & (times <= 4.0)
-    
-    # Extract data for each phase
     data_A = data[:, :, mask_A]
     data_B = data[:, :, mask_B]
     data_C = data[:, :, mask_C]
     
-    # Compute baselines
-    baseline_A = np.mean(data[:, :, mask_base_A], axis=2, keepdims=True)
-    baseline_B = np.mean(data[:, :, mask_base_B], axis=2, keepdims=True)
-    baseline_C = np.mean(data[:, :, mask_base_C], axis=2, keepdims=True)
+    times_A = times[mask_A]
     
-    # Subtract baselines
+    # 2. Baseline correction on [-0.2, 0]
+    # Because MATLAB overrode Part B and C's time vectors with Part A's time vector,
+    # the baseline window effectively targeted the FIRST 0.2 seconds of the slice.
+    mask_base_rel = (times_A >= -0.2) & (times_A <= 0)
+    
+    baseline_A = np.mean(data_A[:, :, mask_base_rel], axis=2, keepdims=True)
+    baseline_B = np.mean(data_B[:, :, mask_base_rel], axis=2, keepdims=True)
+    baseline_C = np.mean(data_C[:, :, mask_base_rel[:data_C.shape[2]]], axis=2, keepdims=True)
+    
     data_A -= baseline_A
     data_B -= baseline_B
     data_C -= baseline_C
     
-    # Shift time axes so that each phase starts at 0
-    times_A = times[mask_A]
-    times_B = times[mask_B] - 2.0   # response phase starts at 1.8s → shift to 0
-    times_C = times[mask_C] - 4.0   # feedback phase starts at 3.8s → shift to 0
-    
-    # Define bin edges (same as before)
+    # 3. Time binning (using STRICT inequalities > and < to match MATLAB logical arrays)
     time_windows_AB = np.array([np.arange(0, 1.76, 0.25), np.arange(0.25, 2.01, 0.25)]).T
     time_windows_C = np.array([np.arange(0, 0.76, 0.25), np.arange(0.25, 1.01, 0.25)]).T
     
@@ -84,28 +121,32 @@ def get_time_bins(epochs):
     binned_data = np.zeros((num_tr, num_chan, len(time_windows_AB)*2 + len(time_windows_C)))
     
     bin_idx = 0
-    # Decision phase bins (using times_A)
+    # Decision phase bins
     for w in time_windows_AB:
-        m_A = (times_A > w[0]) & (times_A < w[1])
-        binned_data[:, :, bin_idx] = np.mean(data_A[:, :, m_A], axis=2)
+        m = (times_A > w[0]) & (times_A < w[1])
+        binned_data[:, :, bin_idx] = np.mean(data_A[:, :, m], axis=2)
         bin_idx += 1
-    # Response phase bins (using times_B)
+        
+    # Response phase bins
     for w in time_windows_AB:
-        m_B = (times_B > w[0]) & (times_B < w[1])
-        binned_data[:, :, bin_idx] = np.mean(data_B[:, :, m_B], axis=2)
+        min_len = min(len(times_A), data_B.shape[2])
+        m = (times_A[:min_len] > w[0]) & (times_A[:min_len] < w[1])
+        binned_data[:, :, bin_idx] = np.mean(data_B[:, :, m], axis=2)
         bin_idx += 1
-    # Feedback phase bins (using times_C)
+        
+    # Feedback phase bins
     for w in time_windows_C:
-        m_C = (times_C > w[0]) & (times_C < w[1])
-        binned_data[:, :, bin_idx] = np.mean(data_C[:, :, m_C], axis=2)
+        min_len = min(len(times_A), data_C.shape[2])
+        m = (times_A[:min_len] > w[0]) & (times_A[:min_len] < w[1])
+        binned_data[:, :, bin_idx] = np.mean(data_C[:, :, m], axis=2)
         bin_idx += 1
         
     return binned_data
 
+
 def create_pseudo_trials(X, y, n_splits=10, count=4, repeats=20, random_state=1):
     """
     Replicates CoSMoMVPA's cosmo_average_samples.
-    Splits data into 'n_splits' chunks. Within each chunk and class, averages 'count' trials 'repeats' times.
     """
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
     
@@ -121,6 +162,7 @@ def create_pseudo_trials(X, y, n_splits=10, count=4, repeats=20, random_state=1)
         
         for c in np.unique(fold_y):
             c_idx = np.where(fold_y == c)[0]
+            # In MATLAB, replace is True if fewer samples than count
             replace = len(c_idx) < count
             
             for _ in range(repeats):
@@ -130,6 +172,7 @@ def create_pseudo_trials(X, y, n_splits=10, count=4, repeats=20, random_state=1)
                 chunks.append(chunk_idx)
                 
     return np.array(X_pseudo), np.array(y_pseudo), np.array(chunks)
+
 
 def run_decoding(max_pairs=None):
     deriv_dir = os.path.join(path_to_data, 'derivatives')
@@ -170,10 +213,8 @@ def run_decoding(max_pairs=None):
                 
             epochs = mne.read_epochs(epoch_file, preload=True, verbose=False)
 
-            # Assign montage – no renaming needed
             montage = mne.channels.make_standard_montage('biosemi64')
             epochs.set_montage(montage, on_missing='ignore')
-
             epochs.set_eeg_reference('average', projection=False, verbose=False)
             
             rem_idx = np.arange(0, 480, 40)
@@ -184,32 +225,36 @@ def run_decoding(max_pairs=None):
             
             binned_data = get_time_bins(epochs_sel)
             
-            # --- Build custom neighbor lists using original BioSemi coordinates ---
             ch_names_epoch = epochs_sel.ch_names
-            # Ensure all channels have positions
-            missing = [ch for ch in ch_names_epoch if ch not in pos_dict]
-            if missing:
-                raise ValueError(f"Missing positions for channels: {missing}")
-            
             n_chan = len(ch_names_epoch)
-            dist_mat = np.zeros((n_chan, n_chan))
-            for i, ch1 in enumerate(ch_names_epoch):
-                for j, ch2 in enumerate(ch_names_epoch):
-                    dist_mat[i, j] = np.linalg.norm(pos_dict[ch1] - pos_dict[ch2])
             
-            # For each channel, find the 3 closest other channels (excluding itself)
-            neighbor_lists = []
-            for i in range(n_chan):
-                distances = dist_mat[i].copy()
-                distances[i] = np.inf          # exclude self
-                closest_3 = np.argsort(distances)[:3]   # indices of 3 nearest neighbours
-                neighbor_list = [i] + list(closest_3)   # include the center channel
-                neighbor_lists.append(neighbor_list)
-            # --------------------------------------------------------------
+            if pos_dict is not None:
+                dist_mat = np.zeros((n_chan, n_chan))
+                for i, ch1 in enumerate(ch_names_epoch):
+                    for j, ch2 in enumerate(ch_names_epoch):
+                        dist_mat[i, j] = np.linalg.norm(pos_dict[ch1] - pos_dict[ch2])
+                
+                neighbor_lists = []
+                for i in range(n_chan):
+                    distances = dist_mat[i].copy()
+                    distances[i] = np.inf
+                    closest_3 = np.argsort(distances)[:3]
+                    neighbor_lists.append([i] + list(closest_3))
+            else:
+                pos = epochs_sel.get_montage().get_positions()['ch_pos']
+                pos_arr = np.array([pos[ch] for ch in ch_names_epoch])
+                from scipy.spatial.distance import cdist
+                dist_mat = cdist(pos_arr, pos_arr)
+                neighbor_lists = []
+                for i in range(n_chan):
+                    distances = dist_mat[i].copy()
+                    distances[i] = np.inf
+                    closest_3 = np.argsort(distances)[:3]
+                    neighbor_lists.append([i] + list(closest_3))
             
             decoding_accuracy = []
             searchlight_acc = []
-            targets_map = [0, 1, 3, 4]   # columns in behav_data: self, other, selfp, otherp
+            targets_map = [0, 1, 3, 4]
             
             for test_idx in targets_map:
                 y = behav_data[:, test_idx]
@@ -222,34 +267,33 @@ def run_decoding(max_pairs=None):
                     searchlight_acc.append(np.full((num_chan, 20), np.nan))
                     continue
                 
-                # Apply Pseudo-trial averaging (using fixed seed to match MATLAB)
                 X_pseudo, y_pseudo, chunks_pseudo = create_pseudo_trials(
                     X_valid, y_valid, n_splits=10, count=4, repeats=20, random_state=1
                 )
                 
-                # Use LeaveOneGroupOut with the chunks generated by the pseudo-trial function
                 cv = LeaveOneGroupOut()
-                clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage=0.01)
+                # Deploy custom CosmoLDA!
+                clf = CosmoLDA(reg=0.01)
                 
                 acc_time = np.zeros(20)
                 for t in range(20):
                     X_t = X_pseudo[:, :, t]
-                    acc_time[t] = cross_val_score(clf, X_t, y_pseudo, groups=chunks_pseudo, cv=cv, scoring='balanced_accuracy', n_jobs=-1).mean()
+                    acc_time[t] = cross_val_score(clf, X_t, y_pseudo, groups=chunks_pseudo, cv=cv, scoring='accuracy', n_jobs=-1).mean()
                 decoding_accuracy.append(acc_time)
                 
                 sl_acc = np.zeros((num_chan, 20))
                 
-                # Searchlight using custom neighbour lists
                 for ch in range(num_chan):
-                    ch_idx = neighbor_lists[ch]   # list of indices (including center)
+                    ch_idx = neighbor_lists[ch]
                     for t in range(20):
                         X_t_sl = X_pseudo[:, ch_idx, t]
-                        sl_acc[ch, t] = cross_val_score(clf, X_t_sl, y_pseudo, groups=chunks_pseudo, cv=cv).mean()
+                        sl_acc[ch, t] = cross_val_score(clf, X_t_sl, y_pseudo, groups=chunks_pseudo, cv=cv, scoring='accuracy').mean()
                 searchlight_acc.append(sl_acc)
                 
             out_file = os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding.pkl')
             with open(out_file, 'wb') as f:
                 pickle.dump({'decoding': decoding_accuracy, 'searchlight': searchlight_acc, 'ch_names': ch_names_epoch}, f)
+
 
 if __name__ == '__main__':
     import argparse

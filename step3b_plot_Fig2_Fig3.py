@@ -5,9 +5,6 @@ Includes the text labels over the phase windows.
 """
 
 import os
-# Set R_HOME explicitly if needed
-# os.environ['R_HOME'] = r'C:\Program Files\R\R-4.5.2' 
-
 import pickle
 import numpy as np
 import pandas as pd
@@ -59,6 +56,7 @@ def calc_bayes_factor(data, mu=1/3, rscale="medium", null_interval="c(0.5, Inf)"
         t_stat, _ = stats.ttest_1samp(data, mu)
         return pg.bayesfactor_ttest(t_stat, nx=len(data), r=rscale)
 
+
 def calc_bayes_factor_ind(data_win, data_los, rscale="medium", null_interval="c(-0.5, 0.5)"):
     if not R_AVAILABLE:
         from scipy import stats
@@ -77,6 +75,7 @@ def calc_bayes_factor_ind(data_win, data_los, rscale="medium", null_interval="c(
         from scipy import stats
         t_stat, _ = stats.ttest_ind(data_win, data_los)
         return pg.bayesfactor_ttest(t_stat, nx=len(data_win), ny=len(data_los), r=rscale)
+
 
 def plot_decoding(max_pairs=None):
     pairs_to_run = pair_ids[:max_pairs] if max_pairs is not None else pair_ids
@@ -115,6 +114,7 @@ def plot_decoding(max_pairs=None):
     gs2 = gridspec.GridSpec(2, 2, figure=fig2, hspace=0.3, wspace=0.2)
     titles = ['A) Own response', "B) Opponent's response", 'C) Own previous response', "D) Opponent's previous response"]
     
+    # Using 1-indexed ticks locally but 0.125 increments matching the bins
     x_axis_time = np.linspace(0.125, 4.875, 20) 
     
     for t in range(num_tests):
@@ -129,21 +129,18 @@ def plot_decoding(max_pairs=None):
         ci = np.nanstd(data_t * 100, axis=0) / np.sqrt(num_pairs_run * 2) * 1.96
         
         ax_main.axhline(33.33, color='k', linestyle='--', zorder=0)
-        # Decision (bins 0-7)
-        ax_main.plot(x_axis_time[:8], data_mean[:8], 'k-', linewidth=2)
-        ax_main.fill_between(x_axis_time[:8], data_mean[:8] - ci[:8], data_mean[:8] + ci[:8], color='gray', alpha=0.3)
-        # Response (bins 8-15)
-        ax_main.plot(x_axis_time[8:16], data_mean[8:16], 'k-', linewidth=2)
-        ax_main.fill_between(x_axis_time[8:16], data_mean[8:16] - ci[8:16], data_mean[8:16] + ci[8:16], color='gray', alpha=0.3)
-        # Feedback (bins 16-19)
-        ax_main.plot(x_axis_time[16:], data_mean[16:], 'k-', linewidth=2)
-        ax_main.fill_between(x_axis_time[16:], data_mean[16:] - ci[16:], data_mean[16:] + ci[16:], color='gray', alpha=0.3)
+        
+        # Segment plotting to match paper's distinct lines
+        colors = ['#EDB120', '#D95319', '#7E2F8E']
+        for idx, (start, end) in enumerate([(0, 8), (8, 16), (16, 20)]):
+            ax_main.plot(x_axis_time[start:end], data_mean[start:end], color=colors[idx], linewidth=2)
+            ax_main.fill_between(x_axis_time[start:end], data_mean[start:end] - ci[start:end], data_mean[start:end] + ci[start:end], color=colors[idx], alpha=0.2)
+            ax_main.scatter(x_axis_time[start:end], data_mean[start:end], color=colors[idx], s=40)
         
         ax_main.axvspan(0, 2, color='#EDB120', alpha=0.1)
         ax_main.axvspan(2, 4, color='#D95319', alpha=0.1)
         ax_main.axvspan(4, 5, color='#7E2F8E', alpha=0.1)
         
-        # Add the missing phase labels
         ax_main.text(1.0, 39.7, 'Decision', ha='center', va='top', fontsize=11, fontweight='bold', color='black', zorder=10)
         ax_main.text(3.0, 39.7, 'Response', ha='center', va='top', fontsize=11, fontweight='bold', color='black', zorder=10)
         ax_main.text(4.5, 39.7, 'Feedback', ha='center', va='top', fontsize=11, fontweight='bold', color='black', zorder=10)
@@ -198,9 +195,8 @@ def plot_decoding(max_pairs=None):
             for d, c, lbl in zip([data_win, data_los], ['#0072BD', '#77AC30'], ['Winners', 'Losers']):
                 mean_d = np.nanmean(d, axis=0)
                 ci_d = np.nanstd(d, axis=0) / np.sqrt(len(d)) * 1.96
-                # Plot segmented lines to match phase breaks
                 for start, end in [(0, 8), (8, 16), (16, 20)]:
-                    line_lbl = lbl if start == 0 else None  # Only label the first segment for the legend
+                    line_lbl = lbl if start == 0 else None
                     ax_main.plot(x_axis_time[start:end], mean_d[start:end], color=c, linewidth=2, label=line_lbl)
                     ax_main.fill_between(x_axis_time[start:end], mean_d[start:end] - ci_d[start:end], mean_d[start:end] + ci_d[start:end], color=c, alpha=0.15)
                     ax_main.scatter(x_axis_time[start:end], mean_d[start:end], color=c, s=30)
@@ -209,7 +205,6 @@ def plot_decoding(max_pairs=None):
             ax_main.axvspan(2, 4, color='#D95319', alpha=0.1)
             ax_main.axvspan(4, 5, color='#7E2F8E', alpha=0.1)
             
-            # Add the missing phase labels
             ax_main.text(1.0, 39.7, 'Decision', ha='center', va='top', fontsize=11, fontweight='bold', color='black', zorder=10)
             ax_main.text(3.0, 39.7, 'Response', ha='center', va='top', fontsize=11, fontweight='bold', color='black', zorder=10)
             ax_main.text(4.5, 39.7, 'Feedback', ha='center', va='top', fontsize=11, fontweight='bold', color='black', zorder=10)
