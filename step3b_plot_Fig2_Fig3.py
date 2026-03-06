@@ -6,7 +6,7 @@ Uses rpy2 with modern conversion; falls back to pingouin if R/BayesFactor not av
 
 import os
 # Set R_HOME explicitly (adjust path to your R installation)
-os.environ['R_HOME'] = r'C:\Program Files\R\R-4.5.2'  # <-- change if needed
+# os.environ['R_HOME'] = r'C:\Program Files\R\R-4.5.2'  # <-- change if needed
 
 import pickle
 import numpy as np
@@ -36,7 +36,8 @@ except Exception as e:
     import pingouin as pg
 
 path_to_data = 'project/ds006761'
-plot_dir = os.path.join(path_to_data, 'derivatives', 'plots')
+root_dir = 'EEG-PROJECT'
+plot_dir = os.path.join(root_dir, 'results', 'plots')
 os.makedirs(plot_dir, exist_ok=True)
 
 pair_ids = list(range(1, 10)) + list(range(11, 23)) + list(range(25, 35))
@@ -168,6 +169,7 @@ def plot_decoding(max_pairs=None):
             ax_topo.set_title(f'{idx+1}s', pad=0)
 
     plt.savefig(os.path.join(plot_dir, 'Figure2.png'), dpi=300, bbox_inches='tight')
+    print("Figure 2 saved.")
 
     # FIGURE 3
     if len(winners_idx) >= 1:
@@ -219,6 +221,7 @@ def plot_decoding(max_pairs=None):
             ax_bf.set_ylim(-0.5, 2.5)
 
         plt.savefig(os.path.join(plot_dir, 'Figure3.png'), dpi=300, bbox_inches='tight')
+        print("Figure 3 saved.")
 
 if __name__ == '__main__':
     import argparse

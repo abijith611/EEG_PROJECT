@@ -13,7 +13,8 @@ import seaborn as sns
 from scipy import stats
 
 path_to_data = 'project/ds006761'
-plot_dir = os.path.join(path_to_data, 'derivatives', 'plots')
+root_dir = 'EEG-PROJECT'
+plot_dir = os.path.join(root_dir, 'results', 'plots')
 os.makedirs(plot_dir, exist_ok=True)
 
 pair_ids = list(range(1, 10)) + list(range(11, 23)) + list(range(25, 35))
@@ -103,7 +104,8 @@ def plot_behavior(max_pairs=None):
     sns.stripplot(data=df_outcome, ax=ax, color='k', alpha=0.5, jitter=True, size=4)
     ax.axhline(33.33, color='k', linestyle='--')
     ax.set_ylabel('Percentage')
-    
+    ax.set_ylim(18, 48)
+
     # Plot 2: Ranked Resp Violin + Pie Insets
     ax = axes[0, 1]
     df_ranked = pd.DataFrame({
@@ -114,7 +116,8 @@ def plot_behavior(max_pairs=None):
     sns.violinplot(data=df_ranked, ax=ax, palette=['#B30000', '#E64D00', '#FFB300'], inner='box', cut=0)
     sns.stripplot(data=df_ranked, ax=ax, color='k', alpha=0.5, jitter=True, size=4)
     ax.axhline(33.33, color='k', linestyle='--')
-    
+    ax.set_ylim(18, 48)
+
     # Add Pie Charts above Violins
     rps_colors = ['#4DBEEE', '#77AC30', '#EDB120'] # Rock, Paper, Scissors colors
     for i in range(3):
@@ -134,7 +137,8 @@ def plot_behavior(max_pairs=None):
     sns.stripplot(data=df_change, ax=ax, color='k', alpha=0.5, jitter=True, size=4)
     ax.axhline(66.67, color='k', linestyle='--')
     ax.set_ylabel('Percentage')
-    
+    ax.set_ylim(20, 103)
+
     # Plot 4: Predictability (Markov Chain)
     ax = axes[1, 1]
     x_axis = np.arange(5, 101)
