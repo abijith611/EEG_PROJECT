@@ -44,30 +44,39 @@ pos_dict = {name: orig_coords[i] for i, name in enumerate(std_names_ordered)}
 
 def get_time_bins(epochs):
     times = epochs.times
-    sfreq = epochs.info['sfreq']
     data = epochs.get_data()
     
+    # Masks for each phase
     mask_A = (times >= -0.2) & (times <= 2.0)
     mask_B = (times >= 1.8) & (times <= 4.0)
     mask_C = (times >= 3.8) & (times <= 5.0)
-    mask_base = (times >= -0.2) & (times <= 0)
     
+    # Baseline masks: 200 ms before each phase onset
+    mask_base_A = (times >= -0.2) & (times <= 0)          # before decision
+    mask_base_B = (times >= 1.6) & (times <= 1.8)        # before response
+    mask_base_C = (times >= 3.6) & (times <= 3.8)        # before feedback
+    
+    # Extract data for each phase
     data_A = data[:, :, mask_A]
     data_B = data[:, :, mask_B]
     data_C = data[:, :, mask_C]
     
-    baseline_A = np.mean(data[:, :, mask_base], axis=2, keepdims=True)
-    baseline_B = np.mean(data[:, :, mask_base], axis=2, keepdims=True)
-    baseline_C = np.mean(data[:, :, mask_base], axis=2, keepdims=True)
+    # Compute baselines
+    baseline_A = np.mean(data[:, :, mask_base_A], axis=2, keepdims=True)
+    baseline_B = np.mean(data[:, :, mask_base_B], axis=2, keepdims=True)
+    baseline_C = np.mean(data[:, :, mask_base_C], axis=2, keepdims=True)
     
+    # Subtract baselines
     data_A -= baseline_A
     data_B -= baseline_B
     data_C -= baseline_C
     
+    # Shift time axes so that each phase starts at 0
     times_A = times[mask_A]
-    times_B = times[mask_B] - 2.0
-    times_C = times[mask_C] - 4.0
+    times_B = times[mask_B] - 2.0   # response phase starts at 1.8s → shift to 0
+    times_C = times[mask_C] - 4.0   # feedback phase starts at 3.8s → shift to 0
     
+    # Define bin edges (same as before)
     time_windows_AB = np.array([np.arange(0, 1.76, 0.25), np.arange(0.25, 2.01, 0.25)]).T
     time_windows_C = np.array([np.arange(0, 0.76, 0.25), np.arange(0.25, 1.01, 0.25)]).T
     
@@ -75,14 +84,17 @@ def get_time_bins(epochs):
     binned_data = np.zeros((num_tr, num_chan, len(time_windows_AB)*2 + len(time_windows_C)))
     
     bin_idx = 0
+    # Decision phase bins (using times_A)
     for w in time_windows_AB:
         m_A = (times_A > w[0]) & (times_A < w[1])
         binned_data[:, :, bin_idx] = np.mean(data_A[:, :, m_A], axis=2)
         bin_idx += 1
+    # Response phase bins (using times_B)
     for w in time_windows_AB:
         m_B = (times_B > w[0]) & (times_B < w[1])
         binned_data[:, :, bin_idx] = np.mean(data_B[:, :, m_B], axis=2)
         bin_idx += 1
+    # Feedback phase bins (using times_C)
     for w in time_windows_C:
         m_C = (times_C > w[0]) & (times_C < w[1])
         binned_data[:, :, bin_idx] = np.mean(data_C[:, :, m_C], axis=2)

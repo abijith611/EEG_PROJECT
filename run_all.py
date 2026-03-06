@@ -14,6 +14,7 @@ import step2a_decoding
 import step2b_markovchain
 import step3a_plot_Fig1
 import step3b_plot_Fig2_Fig3
+import debug_decoding
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run full EEG pipeline")
@@ -40,6 +41,9 @@ if __name__ == '__main__':
     print("\n>>> STEP 3b: PLOTTING FIGURES 2 & 3 (DECODING & BFS) <<<")
     step3b_plot_Fig2_Fig3.plot_decoding(max_pairs=args.test_pairs)
     
+    print("\n>>> DEBUG: DECODING STATISTICS <<<")
+    debug_decoding.run_debug()
+    
     print("\n==================================================")
-    print("Pipeline Complete! Check 'project/ds006761/derivatives' for results.")
+    print("Pipeline Complete! Check 'results/plots' for results.")
     print("==================================================")
