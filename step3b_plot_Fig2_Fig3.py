@@ -1,12 +1,12 @@
 """
 Plot Decoding Results and Compute Bayes Factors
 Replicates the grid layout, time-bin topographies, and directional Bayes Factors.
-Uses rpy2 with modern conversion; falls back to pingouin if R/BayesFactor not available.
+Includes the text labels over the phase windows.
 """
 
 import os
-# Set R_HOME explicitly (adjust path to your R installation)
-# os.environ['R_HOME'] = r'C:\Program Files\R\R-4.5.2'  # <-- change if needed
+# Set R_HOME explicitly if needed
+# os.environ['R_HOME'] = r'C:\Program Files\R\R-4.5.2' 
 
 import pickle
 import numpy as np
@@ -16,7 +16,6 @@ import matplotlib.gridspec as gridspec
 import mne
 import warnings
 
-# Try to set up rpy2 and test if R is callable
 R_AVAILABLE = False
 try:
     import rpy2.robjects as robjects
@@ -24,9 +23,7 @@ try:
     from rpy2.robjects import numpy2ri
     conv = numpy2ri.converter
 
-    # Test if R is actually reachable by running a simple command
-    robjects.r('version')  # should not raise an error
-    # Now try to import BayesFactor
+    robjects.r('version')
     bf_pkg = importr('BayesFactor')
     R_AVAILABLE = True
     print("R and BayesFactor package found – using exact Bayes factors.")
@@ -45,7 +42,6 @@ num_tests = 4
 num_time_bins = 20
 
 def calc_bayes_factor(data, mu=1/3, rscale="medium", null_interval="c(0.5, Inf)"):
-    """Exact directional Bayes factor using R's BayesFactor (modern rpy2)."""
     if not R_AVAILABLE:
         from scipy import stats
         t_stat, _ = stats.ttest_1samp(data, mu)
@@ -64,7 +60,6 @@ def calc_bayes_factor(data, mu=1/3, rscale="medium", null_interval="c(0.5, Inf)"
         return pg.bayesfactor_ttest(t_stat, nx=len(data), r=rscale)
 
 def calc_bayes_factor_ind(data_win, data_los, rscale="medium", null_interval="c(-0.5, 0.5)"):
-    """Two-sample Bayes factor for winners vs losers."""
     if not R_AVAILABLE:
         from scipy import stats
         t_stat, _ = stats.ttest_ind(data_win, data_los)
@@ -75,7 +70,7 @@ def calc_bayes_factor_ind(data_win, data_los, rscale="medium", null_interval="c(
             robjects.globalenv['data_win'] = data_win
             robjects.globalenv['data_los'] = data_los
             robjects.r(f'bf = BayesFactor::ttestBF(x=data_win, y=data_los, rscale="{rscale}", nullInterval={null_interval})')
-            bf_val = robjects.r('as.vector(bf[2])')[0]  # second element = complement of interval
+            bf_val = robjects.r('as.vector(bf[2])')[0] 
         return float(bf_val)
     except Exception as e:
         warnings.warn(f"R call failed, falling back to pingouin: {e}")
@@ -120,7 +115,6 @@ def plot_decoding(max_pairs=None):
     gs2 = gridspec.GridSpec(2, 2, figure=fig2, hspace=0.3, wspace=0.2)
     titles = ['A) Own response', "B) Opponent's response", 'C) Own previous response', "D) Opponent's previous response"]
     
-    # Correct X-axis for time in seconds (centre of each 250 ms bin)
     x_axis_time = np.linspace(0.125, 4.875, 20) 
     
     for t in range(num_tests):
@@ -134,12 +128,19 @@ def plot_decoding(max_pairs=None):
         data_mean = np.nanmean(data_t * 100, axis=0)
         ci = np.nanstd(data_t * 100, axis=0) / np.sqrt(num_pairs_run * 2) * 1.96
         
-        ax_main.axhline(33.33, color='k', linestyle='--')
+        ax_main.axhline(33.33, color='k', linestyle='--', zorder=0)
         ax_main.plot(x_axis_time, data_mean, 'k-', linewidth=2)
         ax_main.fill_between(x_axis_time, data_mean - ci, data_mean + ci, color='gray', alpha=0.3)
-        ax_main.axvspan(0, 2, color='#EDB120', alpha=0.1) # Decision
-        ax_main.axvspan(2, 4, color='#D95319', alpha=0.1) # Response
-        ax_main.axvspan(4, 5, color='#7E2F8E', alpha=0.1) # Feedback
+        
+        ax_main.axvspan(0, 2, color='#EDB120', alpha=0.1)
+        ax_main.axvspan(2, 4, color='#D95319', alpha=0.1)
+        ax_main.axvspan(4, 5, color='#7E2F8E', alpha=0.1)
+        
+        # Add the missing phase labels
+        ax_main.text(1.0, 39.7, 'Decision', ha='center', va='top', fontsize=11, fontweight='bold', color='black', zorder=10)
+        ax_main.text(3.0, 39.7, 'Response', ha='center', va='top', fontsize=11, fontweight='bold', color='black', zorder=10)
+        ax_main.text(4.5, 39.7, 'Feedback', ha='center', va='top', fontsize=11, fontweight='bold', color='black', zorder=10)
+        
         ax_main.set_ylim(31, 40)
         ax_main.set_ylabel('Accuracy (%)')
         ax_main.set_title(titles[t], loc='left', fontweight='bold')
@@ -153,7 +154,7 @@ def plot_decoding(max_pairs=None):
             if len(slice_w) > 2:
                 bfs[w] = calc_bayes_factor(slice_w)
                 
-        sc = ax_bf.scatter(x_axis_time, [0]*20, c=np.log10(bfs), cmap='coolwarm', vmin=-8, vmax=8, s=80)
+        ax_bf.scatter(x_axis_time, [0]*20, c=np.log10(bfs), cmap='coolwarm', vmin=-8, vmax=8, s=80)
         ax_bf.set_yticks([])
         ax_bf.set_ylabel('Log(BF10)')
         
@@ -168,7 +169,7 @@ def plot_decoding(max_pairs=None):
                                  cmap='hot', extrapolate='box', sphere=(0.0, 0.0, 0.0, 0.095))
             ax_topo.set_title(f'{idx+1}s', pad=0)
 
-    plt.savefig(os.path.join(plot_dir, 'Figure2.png'), dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(plot_dir, 'Figure2.png'), dpi=300, bbox_inches='tight', facecolor='white')
     print("Figure 2 saved.")
 
     # FIGURE 3
@@ -186,7 +187,7 @@ def plot_decoding(max_pairs=None):
             data_win = all_decoding[winners_idx, t, :] * 100
             data_los = all_decoding[losers_idx, t, :] * 100
             
-            ax_main.axhline(33.33, color='k', linestyle='--')
+            ax_main.axhline(33.33, color='k', linestyle='--', zorder=0)
             for d, c, lbl in zip([data_win, data_los], ['#0072BD', '#77AC30'], ['Winners', 'Losers']):
                 mean_d = np.nanmean(d, axis=0)
                 ci_d = np.nanstd(d, axis=0) / np.sqrt(len(d)) * 1.96
@@ -197,6 +198,12 @@ def plot_decoding(max_pairs=None):
             ax_main.axvspan(0, 2, color='#EDB120', alpha=0.1)
             ax_main.axvspan(2, 4, color='#D95319', alpha=0.1)
             ax_main.axvspan(4, 5, color='#7E2F8E', alpha=0.1)
+            
+            # Add the missing phase labels
+            ax_main.text(1.0, 39.7, 'Decision', ha='center', va='top', fontsize=11, fontweight='bold', color='black', zorder=10)
+            ax_main.text(3.0, 39.7, 'Response', ha='center', va='top', fontsize=11, fontweight='bold', color='black', zorder=10)
+            ax_main.text(4.5, 39.7, 'Feedback', ha='center', va='top', fontsize=11, fontweight='bold', color='black', zorder=10)
+            
             ax_main.set_ylim(31, 40)
             ax_main.set_ylabel('Accuracy (%)')
             ax_main.set_title(titles[t], loc='left', fontweight='bold')
@@ -220,7 +227,7 @@ def plot_decoding(max_pairs=None):
             ax_bf.set_yticklabels(['Diff', 'Losers', 'Winners'])
             ax_bf.set_ylim(-0.5, 2.5)
 
-        plt.savefig(os.path.join(plot_dir, 'Figure3.png'), dpi=300, bbox_inches='tight')
+        plt.savefig(os.path.join(plot_dir, 'Figure3.png'), dpi=300, bbox_inches='tight', facecolor='white')
         print("Figure 3 saved.")
 
 if __name__ == '__main__':

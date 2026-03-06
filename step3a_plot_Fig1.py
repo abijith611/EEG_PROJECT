@@ -1,15 +1,14 @@
 """
 Plot the behavioural responses
-Matches Figure 1 layout using Matplotlib and Seaborn.
-Includes pie chart insets, custom color palettes, and game-to-game response changes.
-Overlays raw scatter data on violins to mimic the paper's Raincloud visual style.
+Matches Figure 1 layout using Matplotlib.
+Implements custom Raincloud plots (half-violin, thick boxplot, left-scatter)
+to exactly match the paper's visual style.
 """
 
 import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from scipy import stats
 
 path_to_data = 'project/ds006761'
@@ -19,6 +18,37 @@ os.makedirs(plot_dir, exist_ok=True)
 
 pair_ids = list(range(1, 10)) + list(range(11, 23)) + list(range(25, 35))
 
+def draw_raincloud(ax, data_list, colors, x_labels):
+    """Custom function to draw raincloud plots matching the paper's daviolinplot."""
+    x_pos = np.arange(len(data_list))
+    
+    # 1. Half-violins (Right side)
+    vparts = ax.violinplot(data_list, positions=x_pos, showmeans=False, showmedians=False, showextrema=False)
+    for i, pc in enumerate(vparts['bodies']):
+        pc.set_facecolor(colors[i])
+        pc.set_edgecolor('black')
+        pc.set_alpha(0.6)
+        # Clip the left half of the violin to make it right-sided
+        m = x_pos[i]
+        pc.get_paths()[0].vertices[:, 0] = np.clip(pc.get_paths()[0].vertices[:, 0], m, np.inf)
+
+    # 2. Boxplots ("candle bars")
+    bp = ax.boxplot(data_list, positions=x_pos, widths=0.12, patch_artist=True,
+                    showfliers=False, medianprops={'color': 'white', 'linewidth': 2},
+                    boxprops={'facecolor': 'black', 'edgecolor': 'black'},
+                    whiskerprops={'color': 'black', 'linewidth': 1.5},
+                    capprops={'color': 'black', 'linewidth': 1.5})
+
+    # 3. Scatter points (Left side)
+    for i, data in enumerate(data_list):
+        y = data[~np.isnan(data)]
+        # Offset the x position to the left of the boxplot
+        x = np.random.normal(loc=x_pos[i] - 0.2, scale=0.03, size=len(y))
+        ax.scatter(x, y, color='black', alpha=0.4, s=15, edgecolors='none', zorder=1)
+
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(x_labels)
+
 def plot_behavior(max_pairs=None):
     pairs_to_run = pair_ids[:max_pairs] if max_pairs is not None else pair_ids
     num_pairs_run = len(pairs_to_run)
@@ -26,7 +56,7 @@ def plot_behavior(max_pairs=None):
     outcome_summary = np.zeros((num_pairs_run, 3))
     ranked_resp = np.zeros((3, num_pairs_run * 2))
     all_played_rank = np.zeros((3, num_pairs_run * 2))
-    prop_change = np.zeros((3, num_pairs_run * 2)) # [After Win, After Loss, After Draw]
+    prop_change = np.zeros((3, num_pairs_run * 2)) 
     
     for p_idx, pair in enumerate(pairs_to_run):
         events_file = os.path.join(path_to_data, f'sub-{pair:02d}', 'eeg', f'sub-{pair:02d}_task-RPS_events.tsv')
@@ -51,12 +81,11 @@ def plot_behavior(max_pairs=None):
                 ranked_resp[:, p_idx*2 + ppt] = np.sort(counts)[::-1]
                 all_played_rank[:, p_idx*2 + ppt] = np.argsort(counts)[::-1] + 1
                 
-        # Calculate Game-to-game response change (Stay/Switch)
+        # Game-to-game response change
         for ppt in [1, 2]:
             resp = events[f'player{ppt}_resp'].values
             outcome = events['outcome'].values
             
-            # Align outcome to current player perspective (1=draw, 2=win, 3=loss)
             if ppt == 2:
                 outcome_aligned = outcome.copy()
                 outcome_aligned[outcome == 2] = 3
@@ -67,7 +96,7 @@ def plot_behavior(max_pairs=None):
             stay_win, stay_loss, stay_draw = [], [], []
             
             for i in range(1, len(resp)):
-                if resp[i] > 0 and resp[i-1] > 0: # valid trials
+                if resp[i] > 0 and resp[i-1] > 0:
                     changed = (resp[i] != resp[i-1])
                     prev_out = outcome_aligned[i-1]
                     
@@ -91,51 +120,34 @@ def plot_behavior(max_pairs=None):
     
     # Figure setup
     fig, axes = plt.subplots(2, 2, figsize=(12, 12), layout='constrained')
-    sns.set_style("white")
     
-    # Plot 1: Outcomes Violin
+    # Plot 1: Outcomes Raincloud
     ax = axes[0, 0]
-    df_outcome = pd.DataFrame({
-        'Winner\nwins': outcome_summary[:, 1],
-        'Loser\nwins': outcome_summary[:, 2],
-        'Draw': outcome_summary[:, 0]
-    })
-    sns.violinplot(data=df_outcome, ax=ax, palette=['#D95319', '#EDB120', '#7E2F8E'], inner='box', cut=0)
-    sns.stripplot(data=df_outcome, ax=ax, color='k', alpha=0.5, jitter=True, size=4)
-    ax.axhline(33.33, color='k', linestyle='--')
+    data_outcomes = [outcome_summary[:, 1], outcome_summary[:, 2], outcome_summary[:, 0]]
+    draw_raincloud(ax, data_outcomes, ['#D95319', '#EDB120', '#7E2F8E'], ['Winner\nwins', 'Loser\nwins', 'Draw'])
+    ax.axhline(33.33, color='k', linestyle='--', zorder=0)
     ax.set_ylabel('Percentage')
     ax.set_ylim(18, 48)
 
-    # Plot 2: Ranked Resp Violin + Pie Insets
+    # Plot 2: Ranked Resp Raincloud + Pie Insets
     ax = axes[0, 1]
-    df_ranked = pd.DataFrame({
-        'Most\nplayed': ranked_resp[0, :],
-        'Mid\nplayed': ranked_resp[1, :],
-        'Least\nplayed': ranked_resp[2, :]
-    })
-    sns.violinplot(data=df_ranked, ax=ax, palette=['#B30000', '#E64D00', '#FFB300'], inner='box', cut=0)
-    sns.stripplot(data=df_ranked, ax=ax, color='k', alpha=0.5, jitter=True, size=4)
-    ax.axhline(33.33, color='k', linestyle='--')
+    data_ranked = [ranked_resp[0, :], ranked_resp[1, :], ranked_resp[2, :]]
+    draw_raincloud(ax, data_ranked, ['#B30000', '#E64D00', '#FFB300'], ['Most\nplayed', 'Mid\nplayed', 'Least\nplayed'])
+    ax.axhline(33.33, color='k', linestyle='--', zorder=0)
     ax.set_ylim(18, 48)
 
-    # Add Pie Charts above Violins
-    rps_colors = ['#4DBEEE', '#77AC30', '#EDB120'] # Rock, Paper, Scissors colors
+    rps_colors = ['#4DBEEE', '#77AC30', '#EDB120'] 
     for i in range(3):
         ax_inset = ax.inset_axes([0.15 + i*0.31, 0.85, 0.15, 0.15])
         rank_data = all_played_rank[i, :]
         counts = [np.sum(rank_data == 1), np.sum(rank_data == 2), np.sum(rank_data == 3)]
         ax_inset.pie(counts, labels=['R', 'P', 'S'], colors=rps_colors, textprops={'fontsize': 8})
 
-    # Plot 3: Response Change (Switch rate)
+    # Plot 3: Response Change Raincloud
     ax = axes[1, 0]
-    df_change = pd.DataFrame({
-        'After\nwin': prop_change[0, :],
-        'After\nloss': prop_change[1, :],
-        'After\ndraw': prop_change[2, :]
-    })
-    sns.violinplot(data=df_change, ax=ax, palette=['#4DBEEE', '#77AC30', '#7E2F8E'], inner='box', cut=0)
-    sns.stripplot(data=df_change, ax=ax, color='k', alpha=0.5, jitter=True, size=4)
-    ax.axhline(66.67, color='k', linestyle='--')
+    data_change = [prop_change[0, :], prop_change[1, :], prop_change[2, :]]
+    draw_raincloud(ax, data_change, ['#4DBEEE', '#77AC30', '#7E2F8E'], ['After\nwin', 'After\nloss', 'After\ndraw'])
+    ax.axhline(66.67, color='k', linestyle='--', zorder=0)
     ax.set_ylabel('Percentage')
     ax.set_ylim(20, 103)
 
@@ -153,12 +165,12 @@ def plot_behavior(max_pairs=None):
         ax.plot(x_axis, mean_acc, color='#0072BD', linewidth=2)
         ax.fill_between(x_axis, mean_acc - ci, mean_acc + ci, color='#0072BD', alpha=0.2)
         
-    ax.axhline(33.33, color='k', linestyle='--')
+    ax.axhline(33.33, color='k', linestyle='--', zorder=0)
     ax.set_xlabel('N previous games')
     ax.set_ylabel('Accuracy (%)')
     ax.set_ylim(25, 65)
     
-    plt.savefig(os.path.join(plot_dir, 'Figure1.png'), dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(plot_dir, 'Figure1.png'), dpi=300, bbox_inches='tight', facecolor='white')
     print("Figure 1 saved.")
 
 if __name__ == '__main__':
