@@ -86,6 +86,12 @@ def repair_bads_inverse_distance(epochs, bad_chans, thresh=0.05):
         else:
             dists = dist_mat[bad_idx, neigh_idx]
 
+        # --- Print repair info ---
+        print(f"repairing channel {bad}")
+        for nb_idx in neigh_idx:
+            print(f"    using neighbour {ch_names[nb_idx]}")
+        # -------------------------
+
         # Compute inverse‑distance weights
         with np.errstate(divide='ignore'):
             weights = 1.0 / dists
@@ -95,6 +101,9 @@ def repair_bads_inverse_distance(epochs, bad_chans, thresh=0.05):
         # Weighted average across neighbours for all time points and epochs
         # data[:, neigh_idx, :] shape: (n_epochs, n_neigh, n_times)
         data[:, bad_idx, :] = np.average(data[:, neigh_idx, :], axis=1, weights=weights)
+
+    # After processing all bad channels, print total trials
+    print(f"interpolating bad channels for {len(epochs)} trials.")
 
     # Update epochs data in‑place (preserves montage, events, etc.)
     epochs._data = data

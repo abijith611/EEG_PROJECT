@@ -41,7 +41,7 @@ try:
     pos_dict = {name: orig_coords[i] for i, name in enumerate(std_names_ordered)}
 except Exception:
     pos_dict = None
-
+    print("Warning: Could not load BioSemi electrode positions. Spatial searchlight will use MNE's montage distances instead.")
 
 class CosmoLDA(BaseEstimator, ClassifierMixin):
     """
