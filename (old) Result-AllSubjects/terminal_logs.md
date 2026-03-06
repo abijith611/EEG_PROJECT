@@ -1,4 +1,4 @@
-PS C:\Users\Shriram\Documents\University\Semester 3\Signal processing and Analysis of human brain potentials (EEG)\Project\Data\EEG_PROJECT> python run_all.py               
+PS C:\Users\Shriram\Documents\University\Semester 3\Signal processing and Analysis of human brain potentials (EEG)\Project\Data\EEG_PROJECT> python run_all.py
 'sh' is not recognized as an internal or external command,
 operable program or batch file.
 Error importing in API mode: ImportError('On Windows, cffi mode "ANY" is only "ABI".')
@@ -18,12 +18,6 @@ Starting pipeline... (FULL RUN)
    sub-04 P2 repairing: ['T7', 'T8']
    sub-05 P2 repairing: ['T7', 'T8']
    sub-06 P1 repairing: ['C1', 'T7', 'CP2']
-   sub-06 P2 repairing: ['AF8']
-   sub-07 P1 repairing: ['T7', 'TP7', 'P5', 'P10']
-Warning: channel P10 not found, skipping.
-   sub-06 P2 repairing: ['AF8']
-   sub-07 P1 repairing: ['T7', 'TP7', 'P5', 'P10']
-   sub-06 P2 repairing: ['AF8']
    sub-06 P2 repairing: ['AF8']
    sub-07 P1 repairing: ['T7', 'TP7', 'P5', 'P10']
 Warning: channel P10 not found, skipping.
@@ -176,7 +170,44 @@ Figure 1 saved.
 Figure 2 saved.
 Figure 3 saved.
 
+>>> DEBUG: DECODING STATISTICS <<<
+
+=== Loaded 62 subjects ===
+
+Mean decoding accuracies (%) per condition and time bin (0-19):
+
+Own response:
+  bins 0-7 (Decision): [34.33 34.68 34.33 34.7  34.61 33.84 33.86 33.94]
+  bins 8-15 (Response): [34.99 37.03 36.33 36.02 34.89 34.78 34.98 34.95]
+  bins 16-19 (Feedback): [34.   36.06 36.43 35.22]
+
+Opponent's response:
+  bins 0-7 (Decision): [32.33 31.95 32.3  32.34 32.38 32.72 32.74 32.9 ]
+  bins 8-15 (Response): [32.7  33.39 33.46 33.45 32.86 32.25 32.64 32.55]
+  bins 16-19 (Feedback): [34.63 36.2  35.27 34.67]
+
+Own previous response:
+  bins 0-7 (Decision): [34.59 33.99 34.17 33.37 33.77 33.57 33.03 33.44]
+  bins 8-15 (Response): [33.42 34.57 35.02 34.76 34.79 34.56 34.24 34.17]
+  bins 16-19 (Feedback): [33.42 33.63 33.38 34.04]
+
+Opponent's previous response:
+  bins 0-7 (Decision): [35.51 36.24 36.57 35.55 35.51 35.33 35.88 35.17]
+  bins 8-15 (Response): [33.18 33.46 33.79 32.97 33.76 33.69 33.87 34.17]
+  bins 16-19 (Feedback): [33.89 34.09 34.42 34.47]
+
+Subjects with any NaN: 0 / 62
+
+--- Sanity check: label shuffling ---
+Chance level = 33.33%
+Own response: average across time = 35.00%
+Opponent's response: average across time = 33.19%
+Own previous response: average across time = 34.00%
+Opponent's previous response: average across time = 34.58%
+
+Debug plot saved to: project/ds006761\derivatives\debug_decoding.png
+
 ==================================================
-Pipeline Complete! Check 'project/ds006761/derivatives' for results.
+Pipeline Complete! Check 'results/plots' for results.
 ==================================================
 PS C:\Users\Shriram\Documents\University\Semester 3\Signal processing and Analysis of human brain potentials (EEG)\Project\Data\EEG_PROJECT> 
