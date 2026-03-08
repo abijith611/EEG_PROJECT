@@ -20,25 +20,30 @@ pair_ids = list(range(1, 10)) + list(range(11, 23)) + list(range(25, 35))
 num_trials = 480
 num_chan = 64
 
-# Mapping from Biosemi labels (A1..B32) to standard 10‑20 names
-biosemi_to_std = {
-    'A1': 'Fp1', 'A2': 'Fpz', 'A3': 'Fp2', 'A4': 'AF7', 'A5': 'AF3', 'A6': 'AFz', 'A7': 'AF4', 'A8': 'AF8',
-    'A9': 'F7', 'A10': 'F5', 'A11': 'F3', 'A12': 'F1', 'A13': 'Fz', 'A14': 'F2', 'A15': 'F4', 'A16': 'F6',
-    'A17': 'F8', 'A18': 'FT7', 'A19': 'FC5', 'A20': 'FC3', 'A21': 'FC1', 'A22': 'FCz', 'A23': 'FC2', 'A24': 'FC4',
-    'A25': 'FC6', 'A26': 'FT8', 'A27': 'T7', 'A28': 'C5', 'A29': 'C3', 'A30': 'C1', 'A31': 'Cz', 'A32': 'C2',
-    'B1': 'C4', 'B2': 'C6', 'B3': 'T8', 'B4': 'TP7', 'B5': 'CP5', 'B6': 'CP3', 'B7': 'CP1', 'B8': 'CPz',
-    'B9': 'CP2', 'B10': 'CP4', 'B11': 'CP6', 'B12': 'TP8', 'B13': 'P7', 'B14': 'P5', 'B15': 'P3', 'B16': 'P1',
-    'B17': 'Pz', 'B18': 'P2', 'B19': 'P4', 'B20': 'P6', 'B21': 'P8', 'B22': 'PO7', 'B23': 'PO5', 'B24': 'PO3',
-    'B25': 'POz', 'B26': 'PO4', 'B27': 'PO6', 'B28': 'PO8', 'B29': 'O1', 'B30': 'Oz', 'B31': 'O2', 'B32': 'Iz'
-}
+# Load the exact 3D coordinates the author used
+biosemi_mat = scipy.io.loadmat('biosemi64.mat')
+biosemi64_coords = biosemi_mat['biosemi64']
 
-std_names_ordered = [biosemi_to_std[f'A{i}'] for i in range(1,33)] + [biosemi_to_std[f'B{i}'] for i in range(1,33)]
+# The same exact label list we used in Step 1
+matlab_layout_labels = [
+    'Fp1', 'AF7', 'AF3', 'F1', 'F3', 'F5', 'F7', 'FT7', 'FC5', 'FC3', 
+    'FC1', 'C1', 'C3', 'C5', 'T7', 'TP7', 'CP5', 'CP3', 'CP1', 'P1', 
+    'P3', 'P5', 'P7', 'P9', 'PO7', 'PO3', 'O1', 'Iz', 'Oz', 'POz', 
+    'Pz', 'CPz', 'Fpz', 'Fp2', 'AF8', 'AF4', 'AFz', 'Fz', 'F2', 'F4', 
+    'F6', 'F8', 'FT8', 'FC6', 'FC4', 'FC2', 'FCz', 'Cz', 'C2', 'C4', 
+    'C6', 'T8', 'TP8', 'CP6', 'CP4', 'CP2', 'P2', 'P4', 'P6', 'P8', 
+    'P10', 'PO8', 'PO4', 'O2'
+]
+
+
+
 
 # Load the original BioSemi electrode positions
 try:
     biosemi_mat = scipy.io.loadmat('biosemi64.mat')
     orig_coords = biosemi_mat['biosemi64']
-    pos_dict = {name: orig_coords[i] for i, name in enumerate(std_names_ordered)}
+# Override pos_dict with these exact coordinates to prevent the KeyError
+    pos_dict = {label: biosemi64_coords[i] for i, label in enumerate(matlab_layout_labels)}
 except Exception:
     pos_dict = None
     print("Warning: Could not load BioSemi electrode positions. Spatial searchlight will use MNE's montage distances instead.")
