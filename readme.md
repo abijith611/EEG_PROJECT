@@ -2,7 +2,7 @@ Version 2 highlights - SVM and stratified K fold recreation of the authors proje
 
 Requirements:
 
-pip install mne numpy pandas scipy scikit-learn pingouin matplotlib seaborn ptitprince rpy2
+pip install mne numpy pandas scipy scikit-learn pingouin matplotlib seaborn ptitprince rpy2 tqdm
 
 Install R
 

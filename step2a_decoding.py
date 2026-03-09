@@ -1,12 +1,10 @@
 """
-Decoding script (customised):
+Decoding script (fast SVM using SGDClassifier)
   - Decode own & opponent's response for current & previous trial
-  - Uses linear SVM instead of LDA
+  - Uses linear SVM via SGDClassifier (fast, scalable)
   - Uses stratified 10‑fold cross‑validation with shuffling,
     preserving the group (chunk) structure of pseudo‑trials
-  - Groups are the fold indices from pseudo‑trial generation
-
-Toolboxes needed: mne, numpy, scipy, sklearn, pandas
+  - Parallelised searchlight (optional) with progress feedback
 """
 
 import os
@@ -14,12 +12,29 @@ import mne
 import numpy as np
 import pandas as pd
 import scipy.io
-from sklearn.svm import SVC
+from sklearn.linear_model import SGDClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
 import pickle
+from joblib import Parallel, delayed
+import time
+
+# ========== USER ADJUSTABLE PARAMETERS ==========
+N_JOBS_SEARCHLIGHT = -1   # Use all CPU cores for searchlight. Set to 1 to disable parallelism.
+SKIP_SEARCHLIGHT = False  # Set to True to skip searchlight (faster for testing).
+# =================================================
+
+# Optional: tqdm for fancy progress bars
+try:
+    from tqdm import tqdm
+    HAS_TQDM = True
+except ImportError:
+    HAS_TQDM = False
+    def tqdm(iterable, **kwargs):
+        return iterable
 
 path_to_data = 'project/ds006761'
-# Matches the pair_ids used in the author's MATLAB script 
 pair_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
             21, 22, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34]
 num_trials = 480
@@ -36,19 +51,21 @@ matlab_layout_labels = [
     'P10', 'PO8', 'PO4', 'O2'
 ]
 
-# Load exact 3D coordinates from the provided biosemi64.mat [cite: 8, 10]
+# Load exact 3D coordinates from the provided biosemi64.mat
 try:
     biosemi_mat = scipy.io.loadmat('biosemi64.mat')
     orig_coords = biosemi_mat['biosemi64']
     pos_dict = {label: orig_coords[i] for i, label in enumerate(matlab_layout_labels)}
-except Exception:
+    print("Loaded biosemi64.mat coordinates.")
+except Exception as e:
     pos_dict = None
+    print("Could not load biosemi64.mat, using fallback neighbour lists.")
 
 def get_time_bins(epochs):
+    print("   Binning data into 250ms windows...")
     times = epochs.times
     data = epochs.get_data() * 1e6  # Convert to microvolts 
     
-    # Slice into phases matching MATLAB latencies 
     mask_A = (times >= -0.2) & (times <= 2.0)
     mask_B = (times >= 1.8) & (times <= 4.0)
     mask_C = (times >= 3.8) & (times <= 5.0)
@@ -56,7 +73,6 @@ def get_time_bins(epochs):
     data_A, data_B, data_C = data[:, :, mask_A], data[:, :, mask_B], data[:, :, mask_C]
     times_A = times[mask_A]
     
-    # Baseline correction on [-0.2, 0] [cite: 10, 11]
     mask_base = (times_A >= -0.2) & (times_A <= 0)
     baseline_A = np.mean(data_A[:, :, mask_base], axis=2, keepdims=True)
     baseline_B = np.mean(data_B[:, :, mask_base], axis=2, keepdims=True)
@@ -66,7 +82,6 @@ def get_time_bins(epochs):
     data_B -= baseline_B
     data_C -= baseline_C
     
-    # 250ms bins matching author's window settings [cite: 10, 11]
     time_windows_AB = np.array([np.arange(0, 1.76, 0.25), np.arange(0.25, 2.01, 0.25)]).T
     time_windows_C = np.array([np.arange(0, 0.76, 0.25), np.arange(0.25, 1.01, 0.25)]).T
     
@@ -81,49 +96,81 @@ def get_time_bins(epochs):
         m = (times_A[:data_C.shape[2]] > w[0]) & (times_A[:data_C.shape[2]] < w[1])
         binned_data[:, :, bin_idx] = np.mean(data_C[:, :, m], axis=2)
         bin_idx += 1
+    print(f"   Binning done. Shape: {binned_data.shape}")
     return binned_data
 
 def create_pseudo_trials(X, y, seed):
-    """
-    Replicates cosmo_average_samples logic exactly:
-    - Splits data into 10 folds (StratifiedKFold)
-    - For each fold, randomly samples 4 trials per class (with replacement if needed)
-    - Repeats 20 times per class per fold
-    - Returns pseudo‑trials, labels, and chunk indices (fold numbers)
-    """
     from sklearn.model_selection import StratifiedKFold
+    print(f"      Creating pseudo-trials with seed {seed}...")
     skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=seed)
     X_pseudo, y_pseudo, chunks = [], [], []
     np.random.seed(seed)
+    total_chunks = 0
     for chunk_idx, (_, fold_indices) in enumerate(skf.split(X, y)):
         fold_y, fold_X = y[fold_indices], X[fold_indices]
         for c in np.unique(fold_y):
             c_idx = np.where(fold_y == c)[0]
             replace = len(c_idx) < 4
-            for _ in range(20):  # 'repeats' = 20
+            for _ in range(20):
                 samp_idx = np.random.choice(c_idx, size=4, replace=replace)
                 X_pseudo.append(np.mean(fold_X[samp_idx], axis=0))
                 y_pseudo.append(c)
                 chunks.append(chunk_idx)
+                total_chunks += 1
+    print(f"      Created {total_chunks} pseudo-trials.")
     return np.array(X_pseudo), np.array(y_pseudo), np.array(chunks)
+
+def compute_searchlight_for_condition(X_ps, y_ps, groups, neighbor_lists, pipeline, cv, n_jobs_outer=N_JOBS_SEARCHLIGHT):
+    """Parallel computation of searchlight accuracies with progress reporting."""
+    n_chan = X_ps.shape[1]
+    n_times = X_ps.shape[2]
+    total_pairs = n_chan * n_times
+
+    print(f"      Starting searchlight: {n_chan} channels × {n_times} time bins = {total_pairs} combinations.")
+    print(f"      Using {n_jobs_outer} parallel workers.")
+
+    def score_one(ch, t):
+        X_chan = X_ps[:, neighbor_lists[ch], t]
+        scores = cross_val_score(pipeline, X_chan, y_ps, groups=groups, cv=cv, n_jobs=1)
+        return np.mean(scores)
+
+    ch_t_pairs = [(ch, t) for ch in range(n_chan) for t in range(n_times)]
+
+    if HAS_TQDM:
+        results = Parallel(n_jobs=n_jobs_outer)(
+            delayed(score_one)(ch, t) for ch, t in tqdm(ch_t_pairs, desc="      Searchlight", unit="pair")
+        )
+    else:
+        results = []
+        step = max(1, total_pairs // 10)
+        for i, (ch, t) in enumerate(ch_t_pairs):
+            results.append(score_one(ch, t))
+            if (i+1) % step == 0:
+                print(f"      ... {i+1}/{total_pairs} done")
+        print(f"      Searchlight completed.")
+
+    sl_acc = np.array(results).reshape(n_chan, n_times)
+    return sl_acc
 
 def run_decoding(max_pairs=None):
     deriv_dir = os.path.join(path_to_data, 'derivatives')
     pairs_to_run = pair_ids[:max_pairs] if max_pairs is not None else pair_ids
     num_pairs = len(pairs_to_run)
     
+    # Mapping from column index to descriptive name
+    target_names = {0: 'self', 1: 'other', 3: 'self_prev', 4: 'other_prev'}
+    target_cols = [0, 1, 3, 4]  # order as in original paper
+    
     for p_idx, pair in enumerate(pairs_to_run):
         print(f'Loading pair {p_idx + 1} of {num_pairs} (ID: {pair})')
         sub_str = f'sub-{pair:02d}'
         events = pd.read_csv(os.path.join(path_to_data, sub_str, 'eeg', f'{sub_str}_task-RPS_events.tsv'), sep='\t')
         
-        # Build behavioral targets 
         ev_p1 = events[['player1_resp', 'player2_resp', 'outcome']].values
         hist_p1 = np.full((num_trials, 2), np.nan)
         hist_p1[1:] = ev_p1[:-1, :2]
         behav_p1 = np.column_stack([ev_p1, hist_p1])
         
-        # Player 2 outcome relative to them 
         ev_p2_raw = ev_p1[:, [1, 0, 2]]
         ev_p2_raw[ev_p1[:, 2] == 2, 2] = 3
         ev_p2_raw[ev_p1[:, 2] == 3, 2] = 2
@@ -132,73 +179,106 @@ def run_decoding(max_pairs=None):
         behav_p2 = np.column_stack([ev_p2_raw, hist_p2])
 
         for ppt, behav in zip([1, 2], [behav_p1, behav_p2]):
-            print(f'   ppt {ppt}')
+            print(f'   Processing participant {ppt}')
             epoch_file = os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS-epo.fif')
             if not os.path.exists(epoch_file):
+                print(f"      File {epoch_file} not found, skipping.")
                 continue
             epochs = mne.read_epochs(epoch_file, preload=True, verbose=False)
             epochs.set_eeg_reference('average', projection=False, verbose=False)
             
-            # Remove first trial of each block (40‑trial blocks)
             sel_idx = np.setdiff1d(np.arange(num_trials), np.arange(0, 480, 40))
             behav_data = behav[sel_idx]
             binned_data = get_time_bins(epochs[sel_idx])
             
-            # Spatial searchlight neighbors (same as before)
             ch_names = epochs.ch_names
             if pos_dict is not None:
+                print("      Computing neighbour lists from coordinates...")
                 dist_mat = scipy.spatial.distance.cdist(
                     [pos_dict[c] for c in ch_names],
                     [pos_dict[c] for c in ch_names]
                 )
                 neighbor_lists = [np.argsort(dist_mat[i])[0:5] for i in range(num_chan)]
             else:
-                # Fallback: use 5 nearest by index (only if positions unavailable)
+                print("      Using fallback neighbour lists (by index).")
                 neighbor_lists = [np.arange(max(0, i-2), min(num_chan, i+3)) for i in range(num_chan)]
 
             decoding_results = []
             searchlight_results = []
             
-            for target_col in [0, 1, 3, 4]:  # self, other, self_prev, other_prev
+            for target_col in target_cols:
+                target_name = target_names[target_col]
+                print(f"      Decoding target: {target_name}")
                 y = behav_data[:, target_col]
                 valid = ~np.isnan(y) & (y > 0)
-                # Dynamic seed per participant prevents synchronized noise dips
+                print(f"         Valid trials: {np.sum(valid)}")
                 seed = pair * 10 + ppt
                 X_ps, y_ps, groups = create_pseudo_trials(binned_data[valid], y[valid], seed)
                 
-                # Linear SVM (C=1 by default, can be tuned)
-                clf = SVC(kernel='linear', random_state=seed)
+                unique_classes = np.unique(y_ps)
+                if len(unique_classes) < 2:
+                    print(f"         WARNING: Only {len(unique_classes)} class(es) in y_ps. Skipping this target.")
+                    decoding_results.append([np.nan]*20)
+                    if not SKIP_SEARCHLIGHT:
+                        searchlight_results.append(np.full((num_chan,20), np.nan))
+                    continue
                 
-                # StratifiedGroupKFold: 10 folds, shuffle, respecting group labels
+                # Create a pipeline: scale then SVM (SGDClassifier with hinge loss)
+                pipeline = make_pipeline(
+                    StandardScaler(),
+                    SGDClassifier(loss='hinge', penalty='l2', alpha=0.0001,
+                                  max_iter=1000, tol=1e-3, random_state=seed,
+                                  n_jobs=1)  # n_jobs=1 inside to avoid nested parallelism
+                )
                 cv = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=seed)
                 
-                # Time‑resolved decoding
+                # Time‑resolved decoding (simple average over channels)
+                print("         Running time-resolved decoding...")
                 acc_time = []
                 for t in range(20):
-                    scores = cross_val_score(clf, X_ps[:, :, t], y_ps, groups=groups, cv=cv, n_jobs=-1)
-                    acc_time.append(np.mean(scores))
+                    print(f"            Time bin {t+1}/20... ", end='', flush=True)
+                    start_t = time.time()
+                    try:
+                        scores = cross_val_score(pipeline, X_ps[:, :, t], y_ps, groups=groups, cv=cv, n_jobs=1)
+                        mean_score = np.mean(scores)
+                        acc_time.append(mean_score)
+                        elapsed = time.time() - start_t
+                        print(f"done in {elapsed:.2f}s (mean acc={mean_score:.4f})")
+                    except Exception as e:
+                        print(f"ERROR: {e}")
+                        acc_time.append(np.nan)
                 decoding_results.append(acc_time)
+                print(f"         Time-resolved done. Overall mean acc: {np.nanmean(acc_time):.4f}")
                 
-                # Channel searchlight
-                sl_acc = np.zeros((num_chan, 20))
-                for ch in range(num_chan):
-                    for t in range(20):
-                        scores = cross_val_score(clf, X_ps[:, neighbor_lists[ch], t], y_ps, groups=groups, cv=cv, n_jobs=-1)
-                        sl_acc[ch, t] = np.mean(scores)
-                searchlight_results.append(sl_acc)
+                # Searchlight – parallelised (skip if flag set)
+                if SKIP_SEARCHLIGHT:
+                    print("         Skipping searchlight as requested.")
+                    searchlight_results.append(np.full((num_chan,20), np.nan))
+                else:
+                    sl_acc = compute_searchlight_for_condition(
+                        X_ps, y_ps, groups, neighbor_lists, pipeline, cv
+                    )
+                    searchlight_results.append(sl_acc)
+                    print("         Searchlight done.")
                 
-            # Save results
             with open(os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding.pkl'), 'wb') as f:
                 pickle.dump({
                     'decoding': decoding_results,
                     'searchlight': searchlight_results,
                     'ch_names': ch_names
                 }, f)
+            print(f"   Saved results for participant {ppt}")
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--test_pairs', type=int, default=None,
                         help='Number of pairs to process (for testing)')
+    parser.add_argument('--n_jobs', type=int, default=N_JOBS_SEARCHLIGHT,
+                        help='Number of parallel jobs for searchlight (default {}).'.format(N_JOBS_SEARCHLIGHT))
     args = parser.parse_args()
+    if args.n_jobs != N_JOBS_SEARCHLIGHT:
+        N_JOBS_SEARCHLIGHT = args.n_jobs
+    print(f"Using {N_JOBS_SEARCHLIGHT} parallel workers for searchlight.")
+    print(f"SKIP_SEARCHLIGHT = {SKIP_SEARCHLIGHT}")
     run_decoding(max_pairs=args.test_pairs)

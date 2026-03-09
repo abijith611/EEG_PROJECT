@@ -46,7 +46,7 @@ if __name__ == '__main__':
     debug_decoding.run_debug()
 
     print("\n>>> BAYES FACTOR OUTPUT FOR REPORT <<<")
-    bayes_output.extract_stats()
+    bayes_output.extract_winner_loser_stats()
     
     print("\n==================================================")
     print("Pipeline Complete! Check 'results/plots' for results.")
