@@ -1,4 +1,4 @@
-Version 1 highlights - faithful representation of the authors project in python.
+Version 2 highlights - SVM and stratified K fold recreation of the authors project in python.
 
 Requirements:
 

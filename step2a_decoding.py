@@ -1,15 +1,27 @@
+"""
+Decoding script (modified):
+  - Decode own & opponent's response for current & previous trial
+  - Uses linear SVM instead of LDA
+  - Uses stratified 10‑fold cross‑validation with shuffling,
+    preserving the group (chunk) structure of pseudo‑trials
+  - Groups are the fold indices from pseudo‑trial generation
+
+Toolboxes needed: mne, numpy, scipy, sklearn, pandas
+"""
+
 import os
 import mne
 import numpy as np
 import pandas as pd
 import scipy.io
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.model_selection import StratifiedKFold, LeaveOneGroupOut, cross_val_score
+from sklearn.svm import SVC
+from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
 import pickle
 
 path_to_data = 'project/ds006761'
 # Matches the pair_ids used in the author's MATLAB script 
-pair_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34]
+pair_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+            21, 22, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34]
 num_trials = 480
 num_chan = 64
 
@@ -72,7 +84,13 @@ def get_time_bins(epochs):
     return binned_data
 
 def create_pseudo_trials(X, y, seed):
-    # Replicates cosmo_average_samples logic 
+    """
+    Replicates cosmo_average_samples logic exactly:
+    - Splits data into 10 folds (StratifiedKFold)
+    - For each fold, randomly samples 4 trials per class (with replacement if needed)
+    - Repeats 20 times per class per fold
+    - Returns pseudo‑trials, labels, and chunk indices (fold numbers)
+    """
     skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=seed)
     X_pseudo, y_pseudo, chunks = [], [], []
     np.random.seed(seed)
@@ -81,7 +99,7 @@ def create_pseudo_trials(X, y, seed):
         for c in np.unique(fold_y):
             c_idx = np.where(fold_y == c)[0]
             replace = len(c_idx) < 4
-            for _ in range(20): # 'repeats', 20 
+            for _ in range(20):  # 'repeats' = 20
                 samp_idx = np.random.choice(c_idx, size=4, replace=replace)
                 X_pseudo.append(np.mean(fold_X[samp_idx], axis=0))
                 y_pseudo.append(c)
@@ -94,7 +112,6 @@ def run_decoding(max_pairs=None):
     num_pairs = len(pairs_to_run)
     
     for p_idx, pair in enumerate(pairs_to_run):
-        # RESTORED: Participant tracking prints 
         print(f'Loading pair {p_idx + 1} of {num_pairs} (ID: {pair})')
         sub_str = f'sub-{pair:02d}'
         events = pd.read_csv(os.path.join(path_to_data, sub_str, 'eeg', f'{sub_str}_task-RPS_events.tsv'), sep='\t')
@@ -116,45 +133,71 @@ def run_decoding(max_pairs=None):
         for ppt, behav in zip([1, 2], [behav_p1, behav_p2]):
             print(f'   ppt {ppt}')
             epoch_file = os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS-epo.fif')
-            if not os.path.exists(epoch_file): continue
+            if not os.path.exists(epoch_file):
+                continue
             epochs = mne.read_epochs(epoch_file, preload=True, verbose=False)
             epochs.set_eeg_reference('average', projection=False, verbose=False)
             
-            sel_idx = np.setdiff1d(np.arange(num_trials), np.arange(0, 480, 40)) # Exclude block starts 
-            behav_data, binned_data = behav[sel_idx], get_time_bins(epochs[sel_idx])
+            # Remove first trial of each block (40‑trial blocks)
+            sel_idx = np.setdiff1d(np.arange(num_trials), np.arange(0, 480, 40))
+            behav_data = behav[sel_idx]
+            binned_data = get_time_bins(epochs[sel_idx])
             
-            # Spatial searchlight neighbors 
+            # Spatial searchlight neighbors (same as before)
             ch_names = epochs.ch_names
-            dist_mat = scipy.spatial.distance.cdist([pos_dict[c] for c in ch_names], [pos_dict[c] for c in ch_names])
-            neighbor_lists = [np.argsort(dist_mat[i])[0:5] for i in range(num_chan)] # 'count', 4 neighbors + self 
+            if pos_dict is not None:
+                dist_mat = scipy.spatial.distance.cdist(
+                    [pos_dict[c] for c in ch_names],
+                    [pos_dict[c] for c in ch_names]
+                )
+                neighbor_lists = [np.argsort(dist_mat[i])[0:5] for i in range(num_chan)]
+            else:
+                # Fallback: use 5 nearest by index (only if positions unavailable)
+                neighbor_lists = [np.arange(max(0, i-2), min(num_chan, i+3)) for i in range(num_chan)]
 
-            decoding_results, searchlight_results = [], []
-            for target_col in [0, 1, 3, 4]: # self, other, self_prev, other_prev 
+            decoding_results = []
+            searchlight_results = []
+            
+            for target_col in [0, 1, 3, 4]:  # self, other, self_prev, other_prev
                 y = behav_data[:, target_col]
                 valid = ~np.isnan(y) & (y > 0)
-                # DYNAMIC SEED per participant prevents synchronized noise dips 
+                # Dynamic seed per participant prevents synchronized noise dips
                 seed = pair * 10 + ppt
-                X_ps, y_ps, ch_ps = create_pseudo_trials(binned_data[valid], y[valid], seed)
+                X_ps, y_ps, groups = create_pseudo_trials(binned_data[valid], y[valid], seed)
                 
-                # Unregularized LDA solver matching cosmo_classify_lda 
-                clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage=0.01)
-                cv = LeaveOneGroupOut()
+                # Linear SVM (C=1 by default, can be tuned)
+                clf = SVC(kernel='linear', random_state=seed)
                 
-                acc_time = [cross_val_score(clf, X_ps[:, :, t], y_ps, groups=ch_ps, cv=cv).mean() for t in range(20)]
+                # StratifiedGroupKFold: 10 folds, shuffle, respecting group labels
+                cv = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=seed)
+                
+                # Time‑resolved decoding
+                acc_time = []
+                for t in range(20):
+                    scores = cross_val_score(clf, X_ps[:, :, t], y_ps, groups=groups, cv=cv, n_jobs=-1)
+                    acc_time.append(np.mean(scores))
                 decoding_results.append(acc_time)
                 
+                # Channel searchlight
                 sl_acc = np.zeros((num_chan, 20))
                 for ch in range(num_chan):
                     for t in range(20):
-                        sl_acc[ch, t] = cross_val_score(clf, X_ps[:, neighbor_lists[ch], t], y_ps, groups=ch_ps, cv=cv).mean()
+                        scores = cross_val_score(clf, X_ps[:, neighbor_lists[ch], t], y_ps, groups=groups, cv=cv, n_jobs=-1)
+                        sl_acc[ch, t] = np.mean(scores)
                 searchlight_results.append(sl_acc)
                 
+            # Save results
             with open(os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding.pkl'), 'wb') as f:
-                pickle.dump({'decoding': decoding_results, 'searchlight': searchlight_results, 'ch_names': ch_names}, f)
+                pickle.dump({
+                    'decoding': decoding_results,
+                    'searchlight': searchlight_results,
+                    'ch_names': ch_names
+                }, f)
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--test_pairs', type=int, default=None)
+    parser.add_argument('--test_pairs', type=int, default=None,
+                        help='Number of pairs to process (for testing)')
     args = parser.parse_args()
     run_decoding(max_pairs=args.test_pairs)
