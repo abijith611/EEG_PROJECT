@@ -1,5 +1,5 @@
 """
-Decoding script (modified):
+Decoding script (customised):
   - Decode own & opponent's response for current & previous trial
   - Uses linear SVM instead of LDA
   - Uses stratified 10‑fold cross‑validation with shuffling,
@@ -91,6 +91,7 @@ def create_pseudo_trials(X, y, seed):
     - Repeats 20 times per class per fold
     - Returns pseudo‑trials, labels, and chunk indices (fold numbers)
     """
+    from sklearn.model_selection import StratifiedKFold
     skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=seed)
     X_pseudo, y_pseudo, chunks = [], [], []
     np.random.seed(seed)
