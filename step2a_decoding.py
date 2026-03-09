@@ -1,30 +1,19 @@
-"""
-Decoding script:
-  - Decode own & opponent's response for current & previous trial
-  - Uses Time-binning, Pseudo-trial averaging, and Temporal + Spatial Searchlight
-
-Libraries needed: mne, numpy, pandas, scikit-learn, scipy
-"""
-
 import os
 import mne
 import numpy as np
 import pandas as pd
 import scipy.io
-from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.model_selection import StratifiedKFold, LeaveOneGroupOut, cross_val_score
 import pickle
 
 path_to_data = 'project/ds006761'
-pair_ids = list(range(1, 10)) + list(range(11, 23)) + list(range(25, 35))
+# Matches the pair_ids used in the author's MATLAB script 
+pair_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34]
 num_trials = 480
 num_chan = 64
 
-# Load the exact 3D coordinates the author used
-biosemi_mat = scipy.io.loadmat('biosemi64.mat')
-biosemi64_coords = biosemi_mat['biosemi64']
-
-# The same exact label list we used in Step 1
+# Exact channel list as per the author's FieldTrip layout mapping 
 matlab_layout_labels = [
     'Fp1', 'AF7', 'AF3', 'F1', 'F3', 'F5', 'F7', 'FT7', 'FC5', 'FC3', 
     'FC1', 'C1', 'C3', 'C5', 'T7', 'TP7', 'CP5', 'CP3', 'CP1', 'P1', 
@@ -35,275 +24,137 @@ matlab_layout_labels = [
     'P10', 'PO8', 'PO4', 'O2'
 ]
 
-
-
-
-# Load the original BioSemi electrode positions
+# Load exact 3D coordinates from the provided biosemi64.mat [cite: 8, 10]
 try:
     biosemi_mat = scipy.io.loadmat('biosemi64.mat')
     orig_coords = biosemi_mat['biosemi64']
-# Override pos_dict with these exact coordinates to prevent the KeyError
-    pos_dict = {label: biosemi64_coords[i] for i, label in enumerate(matlab_layout_labels)}
+    pos_dict = {label: orig_coords[i] for i, label in enumerate(matlab_layout_labels)}
 except Exception:
     pos_dict = None
-    print("Warning: Could not load BioSemi electrode positions. Spatial searchlight will use MNE's montage distances instead.")
-
-class CosmoLDA(BaseEstimator, ClassifierMixin):
-    """
-    Exact replication of CoSMoMVPA's cosmo_classify_lda.
-    Unlike scikit-learn's shrinkage which blends with the diagonal based on variance,
-    this adds the regularization parameter directly to the diagonal of the pooled
-    covariance matrix as done in CoSMoMVPA. It also assumes equal class priors.
-    """
-    def __init__(self, reg=0.01):
-        self.reg = reg
-        
-    def fit(self, X, y):
-        self.classes_ = np.unique(y)
-        n_classes = len(self.classes_)
-        n_features = X.shape[1]
-        
-        self.means_ = np.zeros((n_classes, n_features))
-        
-        X_c = np.empty_like(X, dtype=float)
-        for i, c in enumerate(self.classes_):
-            idx = (y == c)
-            self.means_[i] = np.mean(X[idx], axis=0)
-            X_c[idx] = X[idx] - self.means_[i]
-            
-        # CoSMoMVPA pooled covariance matrix
-        cov = (X_c.T @ X_c) / (len(y) - n_classes)
-        
-        # Exact CoSMoMVPA regularization (add lambda directly to diagonal)
-        if self.reg > 0:
-            cov += self.reg * np.eye(n_features)
-            
-        self.cov_inv_ = np.linalg.pinv(cov)
-        return self
-        
-    def predict(self, X):
-        scores = np.zeros((X.shape[0], len(self.classes_)))
-        for i, c in enumerate(self.classes_):
-            mu = self.means_[i]
-            # CoSMoMVPA discriminant function (no log-prior term included)
-            scores[:, i] = X @ self.cov_inv_ @ mu - 0.5 * (mu @ self.cov_inv_ @ mu)
-        return self.classes_[np.argmax(scores, axis=1)]
-
 
 def get_time_bins(epochs):
     times = epochs.times
-    data = epochs.get_data() * 1e6  # Convert to microvolts as in FieldTrip
+    data = epochs.get_data() * 1e6  # Convert to microvolts 
     
-    # 1. Slice into phases exactly like MATLAB's [latency]
+    # Slice into phases matching MATLAB latencies 
     mask_A = (times >= -0.2) & (times <= 2.0)
     mask_B = (times >= 1.8) & (times <= 4.0)
     mask_C = (times >= 3.8) & (times <= 5.0)
     
-    data_A = data[:, :, mask_A]
-    data_B = data[:, :, mask_B]
-    data_C = data[:, :, mask_C]
-    
+    data_A, data_B, data_C = data[:, :, mask_A], data[:, :, mask_B], data[:, :, mask_C]
     times_A = times[mask_A]
     
-    # 2. Baseline correction on [-0.2, 0]
-    # Because MATLAB overrode Part B and C's time vectors with Part A's time vector,
-    # the baseline window effectively targeted the FIRST 0.2 seconds of the slice.
-    mask_base_rel = (times_A >= -0.2) & (times_A <= 0)
-    
-    baseline_A = np.mean(data_A[:, :, mask_base_rel], axis=2, keepdims=True)
-    baseline_B = np.mean(data_B[:, :, mask_base_rel], axis=2, keepdims=True)
-    baseline_C = np.mean(data_C[:, :, mask_base_rel[:data_C.shape[2]]], axis=2, keepdims=True)
+    # Baseline correction on [-0.2, 0] [cite: 10, 11]
+    mask_base = (times_A >= -0.2) & (times_A <= 0)
+    baseline_A = np.mean(data_A[:, :, mask_base], axis=2, keepdims=True)
+    baseline_B = np.mean(data_B[:, :, mask_base], axis=2, keepdims=True)
+    baseline_C = np.mean(data_C[:, :, mask_base[:data_C.shape[2]]], axis=2, keepdims=True)
     
     data_A -= baseline_A
     data_B -= baseline_B
     data_C -= baseline_C
     
-    # 3. Time binning (using STRICT inequalities > and < to match MATLAB logical arrays)
+    # 250ms bins matching author's window settings [cite: 10, 11]
     time_windows_AB = np.array([np.arange(0, 1.76, 0.25), np.arange(0.25, 2.01, 0.25)]).T
     time_windows_C = np.array([np.arange(0, 0.76, 0.25), np.arange(0.25, 1.01, 0.25)]).T
     
-    num_tr = data.shape[0]
-    binned_data = np.zeros((num_tr, num_chan, len(time_windows_AB)*2 + len(time_windows_C)))
-    
+    binned_data = np.zeros((data.shape[0], num_chan, 20))
     bin_idx = 0
-    # Decision phase bins
-    for w in time_windows_AB:
-        m = (times_A > w[0]) & (times_A < w[1])
-        binned_data[:, :, bin_idx] = np.mean(data_A[:, :, m], axis=2)
-        bin_idx += 1
-        
-    # Response phase bins
-    for w in time_windows_AB:
-        min_len = min(len(times_A), data_B.shape[2])
-        m = (times_A[:min_len] > w[0]) & (times_A[:min_len] < w[1])
-        binned_data[:, :, bin_idx] = np.mean(data_B[:, :, m], axis=2)
-        bin_idx += 1
-        
-    # Feedback phase bins
+    for d, tw in zip([data_A, data_B], [time_windows_AB, time_windows_AB]):
+        for w in tw:
+            m = (times_A[:d.shape[2]] > w[0]) & (times_A[:d.shape[2]] < w[1])
+            binned_data[:, :, bin_idx] = np.mean(d[:, :, m], axis=2)
+            bin_idx += 1
     for w in time_windows_C:
-        min_len = min(len(times_A), data_C.shape[2])
-        m = (times_A[:min_len] > w[0]) & (times_A[:min_len] < w[1])
+        m = (times_A[:data_C.shape[2]] > w[0]) & (times_A[:data_C.shape[2]] < w[1])
         binned_data[:, :, bin_idx] = np.mean(data_C[:, :, m], axis=2)
         bin_idx += 1
-        
     return binned_data
 
-
-def create_pseudo_trials(X, y, n_splits=10, count=4, repeats=20, random_state=1):
-    """
-    Replicates CoSMoMVPA's cosmo_average_samples.
-    """
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
-    
-    X_pseudo = []
-    y_pseudo = []
-    chunks = []
-    
-    np.random.seed(random_state)
-    
+def create_pseudo_trials(X, y, seed):
+    # Replicates cosmo_average_samples logic 
+    skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=seed)
+    X_pseudo, y_pseudo, chunks = [], [], []
+    np.random.seed(seed)
     for chunk_idx, (_, fold_indices) in enumerate(skf.split(X, y)):
-        fold_y = y[fold_indices]
-        fold_X = X[fold_indices]
-        
+        fold_y, fold_X = y[fold_indices], X[fold_indices]
         for c in np.unique(fold_y):
             c_idx = np.where(fold_y == c)[0]
-            # In MATLAB, replace is True if fewer samples than count
-            replace = len(c_idx) < count
-            
-            for _ in range(repeats):
-                samp_idx = np.random.choice(c_idx, size=count, replace=replace)
+            replace = len(c_idx) < 4
+            for _ in range(20): # 'repeats', 20 
+                samp_idx = np.random.choice(c_idx, size=4, replace=replace)
                 X_pseudo.append(np.mean(fold_X[samp_idx], axis=0))
                 y_pseudo.append(c)
                 chunks.append(chunk_idx)
-                
     return np.array(X_pseudo), np.array(y_pseudo), np.array(chunks)
-
 
 def run_decoding(max_pairs=None):
     deriv_dir = os.path.join(path_to_data, 'derivatives')
-    os.makedirs(deriv_dir, exist_ok=True)
-    
     pairs_to_run = pair_ids[:max_pairs] if max_pairs is not None else pair_ids
-    total_to_run = len(pairs_to_run)
+    num_pairs = len(pairs_to_run)
     
     for p_idx, pair in enumerate(pairs_to_run):
-        print(f'Loading pair {p_idx + 1} of {total_to_run} (ID: {pair})')
+        # RESTORED: Participant tracking prints 
+        print(f'Loading pair {p_idx + 1} of {num_pairs} (ID: {pair})')
         sub_str = f'sub-{pair:02d}'
+        events = pd.read_csv(os.path.join(path_to_data, sub_str, 'eeg', f'{sub_str}_task-RPS_events.tsv'), sep='\t')
         
-        events_file = os.path.join(path_to_data, sub_str, 'eeg', f'{sub_str}_task-RPS_events.tsv')
-        if not os.path.exists(events_file): continue
-        events = pd.read_csv(events_file, sep='\t')
-        
+        # Build behavioral targets 
         ev_p1 = events[['player1_resp', 'player2_resp', 'outcome']].values
-        ev_p2_outcome = ev_p1[:, 2].copy()
-        ev_p2_outcome[ev_p1[:, 2] == 2] = 3
-        ev_p2_outcome[ev_p1[:, 2] == 3] = 2
-        ev_p2 = np.column_stack([ev_p1[:, 1], ev_p1[:, 0], ev_p2_outcome])
+        hist_p1 = np.full((num_trials, 2), np.nan)
+        hist_p1[1:] = ev_p1[:-1, :2]
+        behav_p1 = np.column_stack([ev_p1, hist_p1])
         
-        def build_history(ev_array):
-            history = np.full((num_trials, 2), np.nan)
-            history[1:, :] = ev_array[:-1, :2]
-            return np.column_stack([ev_array, history])
-            
-        behav_p1 = build_history(ev_p1)
-        behav_p2 = build_history(ev_p2)
-        all_behav = [behav_p1, behav_p2]
-        
-        for ppt in [1, 2]:
+        # Player 2 outcome relative to them 
+        ev_p2_raw = ev_p1[:, [1, 0, 2]]
+        ev_p2_raw[ev_p1[:, 2] == 2, 2] = 3
+        ev_p2_raw[ev_p1[:, 2] == 3, 2] = 2
+        hist_p2 = np.full((num_trials, 2), np.nan)
+        hist_p2[1:] = ev_p2_raw[:-1, :2]
+        behav_p2 = np.column_stack([ev_p2_raw, hist_p2])
+
+        for ppt, behav in zip([1, 2], [behav_p1, behav_p2]):
             print(f'   ppt {ppt}')
             epoch_file = os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS-epo.fif')
-            if not os.path.exists(epoch_file):
-                print(f"   Missing epoch file for player {ppt}")
-                continue
-                
+            if not os.path.exists(epoch_file): continue
             epochs = mne.read_epochs(epoch_file, preload=True, verbose=False)
-
-            montage = mne.channels.make_standard_montage('biosemi64')
-            epochs.set_montage(montage, on_missing='ignore')
             epochs.set_eeg_reference('average', projection=False, verbose=False)
             
-            rem_idx = np.arange(0, 480, 40)
-            sel_idx = np.setdiff1d(np.arange(num_trials), rem_idx)
+            sel_idx = np.setdiff1d(np.arange(num_trials), np.arange(0, 480, 40)) # Exclude block starts 
+            behav_data, binned_data = behav[sel_idx], get_time_bins(epochs[sel_idx])
             
-            behav_data = all_behav[ppt-1][sel_idx, :]
-            epochs_sel = epochs[sel_idx]
-            
-            binned_data = get_time_bins(epochs_sel)
-            
-            ch_names_epoch = epochs_sel.ch_names
-            n_chan = len(ch_names_epoch)
-            
-            if pos_dict is not None:
-                dist_mat = np.zeros((n_chan, n_chan))
-                for i, ch1 in enumerate(ch_names_epoch):
-                    for j, ch2 in enumerate(ch_names_epoch):
-                        dist_mat[i, j] = np.linalg.norm(pos_dict[ch1] - pos_dict[ch2])
+            # Spatial searchlight neighbors 
+            ch_names = epochs.ch_names
+            dist_mat = scipy.spatial.distance.cdist([pos_dict[c] for c in ch_names], [pos_dict[c] for c in ch_names])
+            neighbor_lists = [np.argsort(dist_mat[i])[0:5] for i in range(num_chan)] # 'count', 4 neighbors + self 
+
+            decoding_results, searchlight_results = [], []
+            for target_col in [0, 1, 3, 4]: # self, other, self_prev, other_prev 
+                y = behav_data[:, target_col]
+                valid = ~np.isnan(y) & (y > 0)
+                # DYNAMIC SEED per participant prevents synchronized noise dips 
+                seed = pair * 10 + ppt
+                X_ps, y_ps, ch_ps = create_pseudo_trials(binned_data[valid], y[valid], seed)
                 
-                neighbor_lists = []
-                for i in range(n_chan):
-                    distances = dist_mat[i].copy()
-                    distances[i] = np.inf
-                    closest_3 = np.argsort(distances)[:3]
-                    neighbor_lists.append([i] + list(closest_3))
-            else:
-                pos = epochs_sel.get_montage().get_positions()['ch_pos']
-                pos_arr = np.array([pos[ch] for ch in ch_names_epoch])
-                from scipy.spatial.distance import cdist
-                dist_mat = cdist(pos_arr, pos_arr)
-                neighbor_lists = []
-                for i in range(n_chan):
-                    distances = dist_mat[i].copy()
-                    distances[i] = np.inf
-                    closest_3 = np.argsort(distances)[:3]
-                    neighbor_lists.append([i] + list(closest_3))
-            
-            decoding_accuracy = []
-            searchlight_acc = []
-            targets_map = [0, 1, 3, 4]
-            
-            for test_idx in targets_map:
-                y = behav_data[:, test_idx]
-                valid_mask = ~np.isnan(y) & (y > 0)
-                y_valid = y[valid_mask]
-                X_valid = binned_data[valid_mask]
-                
-                if len(y_valid) < 10:
-                    decoding_accuracy.append(np.full(20, np.nan))
-                    searchlight_acc.append(np.full((num_chan, 20), np.nan))
-                    continue
-                
-                X_pseudo, y_pseudo, chunks_pseudo = create_pseudo_trials(
-                    X_valid, y_valid, n_splits=10, count=4, repeats=20, random_state=1
-                )
-                
+                # Unregularized LDA solver matching cosmo_classify_lda 
+                clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage=0.01)
                 cv = LeaveOneGroupOut()
-                # Deploy custom CosmoLDA!
-                clf = CosmoLDA(reg=0.01)
                 
-                acc_time = np.zeros(20)
-                for t in range(20):
-                    X_t = X_pseudo[:, :, t]
-                    acc_time[t] = cross_val_score(clf, X_t, y_pseudo, groups=chunks_pseudo, cv=cv, scoring='accuracy', n_jobs=-1).mean()
-                decoding_accuracy.append(acc_time)
+                acc_time = [cross_val_score(clf, X_ps[:, :, t], y_ps, groups=ch_ps, cv=cv).mean() for t in range(20)]
+                decoding_results.append(acc_time)
                 
                 sl_acc = np.zeros((num_chan, 20))
-                
                 for ch in range(num_chan):
-                    ch_idx = neighbor_lists[ch]
                     for t in range(20):
-                        X_t_sl = X_pseudo[:, ch_idx, t]
-                        sl_acc[ch, t] = cross_val_score(clf, X_t_sl, y_pseudo, groups=chunks_pseudo, cv=cv, scoring='accuracy').mean()
-                searchlight_acc.append(sl_acc)
+                        sl_acc[ch, t] = cross_val_score(clf, X_ps[:, neighbor_lists[ch], t], y_ps, groups=ch_ps, cv=cv).mean()
+                searchlight_results.append(sl_acc)
                 
-            out_file = os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding.pkl')
-            with open(out_file, 'wb') as f:
-                pickle.dump({'decoding': decoding_accuracy, 'searchlight': searchlight_acc, 'ch_names': ch_names_epoch}, f)
-
+            with open(os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding.pkl'), 'wb') as f:
+                pickle.dump({'decoding': decoding_results, 'searchlight': searchlight_results, 'ch_names': ch_names}, f)
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--test_pairs', type=int, default=None,
-                        help='Number of pairs to process (for testing)')
+    parser.add_argument('--test_pairs', type=int, default=None)
     args = parser.parse_args()
     run_decoding(max_pairs=args.test_pairs)

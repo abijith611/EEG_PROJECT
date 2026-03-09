@@ -15,6 +15,7 @@ import step2b_markovchain
 import step3a_plot_Fig1
 import step3b_plot_Fig2_Fig3
 import debug_decoding
+import bayes_output
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run full EEG pipeline")
@@ -43,6 +44,9 @@ if __name__ == '__main__':
     
     print("\n>>> DEBUG: DECODING STATISTICS <<<")
     debug_decoding.run_debug()
+
+    print("\n>>> BAYES FACTOR OUTPUT FOR REPORT <<<")
+    bayes_output.extract_stats()
     
     print("\n==================================================")
     print("Pipeline Complete! Check 'results/plots' for results.")
