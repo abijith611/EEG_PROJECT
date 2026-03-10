@@ -132,8 +132,8 @@ def get_classifier(name, seed):
     elif name == 'lda':
         clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage=0.01)
     elif name == 'logistic':
-        clf = LogisticRegression(penalty='l2', C=1.0, solver='lbfgs',
-                                 max_iter=1000, random_state=seed, n_jobs=1)
+        clf = LogisticRegression(l1_ratio=0, C=1.0, solver='lbfgs',
+                                 max_iter=1000, random_state=seed)
     elif name == 'ridge':
         clf = RidgeClassifier(alpha=1.0, random_state=seed)
     else:
@@ -282,6 +282,11 @@ def run_decoding(max_pairs=None, classifiers=None):
                     
                 # Save results with classifier name in filename
                 out_file = os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding_{clf_name}.pkl')
+                if os.path.exists(out_file):
+                    print(f"      Skipping classifier {clf_name} – output already exists.")
+                    continue
+
+                print(f"      Running classifier: {clf_name}")
                 with open(out_file, 'wb') as f:
                     pickle.dump({
                         'decoding': decoding_results,

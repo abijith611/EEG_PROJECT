@@ -21,27 +21,32 @@ os.makedirs(plot_dir, exist_ok=True)
 pair_ids = list(range(1, 10)) + list(range(11, 23)) + list(range(25, 35))
 
 def draw_raincloud(ax, data_list, colors, x_labels):
-    """Custom function to draw raincloud plots with extended KDE tails."""
+    """Custom function to draw raincloud plots with extended KDE tails.
+       If a dataset has fewer than 2 points, the half‑violin is omitted."""
     x_pos = np.arange(len(data_list))
     
     # 1. Half-violins (Right side) using custom KDE for extended tails
     for i, data in enumerate(data_list):
         y = data[~np.isnan(data)]
-        kde = gaussian_kde(y)
-        
-        # Extend the evaluation range to create the "tails"
-        y_min, y_max = y.min(), y.max()
-        y_range = y_max - y_min
-        y_eval = np.linspace(y_min - 0.3 * y_range, y_max + 0.3 * y_range, 200)
-        
-        # Evaluate KDE and scale width
-        x_eval = kde(y_eval)
-        x_eval = (x_eval / x_eval.max()) * 0.35  # 0.35 controls max width
-        
-        # Draw the right-sided half-violin
-        ax.fill_betweenx(y_eval, x_pos[i], x_pos[i] + x_eval, facecolor=colors[i], edgecolor='black', alpha=0.6)
+        if len(y) >= 2:
+            kde = gaussian_kde(y)
+            
+            # Extend the evaluation range to create the "tails"
+            y_min, y_max = y.min(), y.max()
+            y_range = y_max - y_min
+            y_eval = np.linspace(y_min - 0.3 * y_range, y_max + 0.3 * y_range, 200)
+            
+            # Evaluate KDE and scale width
+            x_eval = kde(y_eval)
+            x_eval = (x_eval / x_eval.max()) * 0.35  # 0.35 controls max width
+            
+            # Draw the right-sided half-violin
+            ax.fill_betweenx(y_eval, x_pos[i], x_pos[i] + x_eval, facecolor=colors[i], edgecolor='black', alpha=0.6)
+        else:
+            # Not enough data for KDE – optionally print a warning
+            print(f"Warning: Not enough data points (n={len(y)}) to draw half-violin for condition {i}")
 
-    # 2. Boxplots ("candle bars")
+    # 2. Boxplots ("candle bars") – they work even with 1 point (though box will be degenerate)
     bp = ax.boxplot(data_list, positions=x_pos, widths=0.12, patch_artist=True,
                     showfliers=False, medianprops={'color': 'white', 'linewidth': 2},
                     boxprops={'facecolor': 'black', 'edgecolor': 'black'},
@@ -51,12 +56,12 @@ def draw_raincloud(ax, data_list, colors, x_labels):
     # 3. Scatter points (Left side)
     for i, data in enumerate(data_list):
         y = data[~np.isnan(data)]
-        x = np.random.normal(loc=x_pos[i] - 0.2, scale=0.03, size=len(y))
-        ax.scatter(x, y, color='black', alpha=0.4, s=15, edgecolors='none', zorder=1)
+        if len(y) > 0:
+            x = np.random.normal(loc=x_pos[i] - 0.2, scale=0.03, size=len(y))
+            ax.scatter(x, y, color='black', alpha=0.4, s=15, edgecolors='none', zorder=1)
 
     ax.set_xticks(x_pos)
     ax.set_xticklabels(x_labels)
-
 def plot_behavior(max_pairs=None):
     pairs_to_run = pair_ids[:max_pairs] if max_pairs is not None else pair_ids
     num_pairs_run = len(pairs_to_run)

@@ -116,6 +116,10 @@ def run_preprocessing(max_pairs=None):
         montage = mne.channels.make_standard_montage('biosemi64')
 
         for ppt in [1, 2]:
+            out_file = os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS-epo.fif')
+            if os.path.exists(out_file):
+                print(f"Skipping pair {pair} player {ppt} – output already exists.")
+                continue
             prefix = '2-' if ppt == 1 else '1-'
             # First, pick only the EEG channels
             ppt_chans = [ch for ch in raw.ch_names if (ch.startswith(prefix + 'A') or ch.startswith(prefix + 'B'))]
@@ -162,9 +166,6 @@ def run_preprocessing(max_pairs=None):
             # Downsample
             epochs.resample(256.0)
 
-            # Save
-            out_file = os.path.join(deriv_dir,
-                                    f'pair-{pair:02d}_player-{ppt}_task-RPS-epo.fif')
             epochs.save(out_file, overwrite=True, verbose=False)
 
 if __name__ == '__main__':
