@@ -12,8 +12,6 @@ import step2a_decoding
 import step2b_markovchain
 import step3a_plot_Fig1
 import step3b_plot_Fig2_Fig3
-import step3c_permutation_stats   # <-- new import
-import step3d_visualize_permutation # <-- new import
 import debug_decoding
 import bayes_output
 
@@ -50,12 +48,6 @@ if __name__ == '__main__':
         print(f"\n--- Plotting for classifier: {clf} ---")
         step3b_plot_Fig2_Fig3.plot_decoding(max_pairs=args.test_pairs, classifier=clf)
 
-    print("\n>>> STEP 3c: PERMUTATION STATISTICS (FREQUENTIST ALTERNATIVE) <<<")
-    step3c_permutation_stats.main(max_pairs=args.test_pairs)
-
-    print("\n>>> STEP 3d: VISUALIZE PERMUTATION RESULTS <<<")
-    step3d_visualize_permutation.main()
-
     print("\n>>> DEBUG: DECODING STATISTICS <<<")
     debug_decoding.run_debug()
 
@@ -63,5 +55,5 @@ if __name__ == '__main__':
     bayes_output.extract_winner_loser_stats()
 
     print("\n==================================================")
-    print("Pipeline Complete! Check 'results/plots' for plots and 'derivatives' for CSV stats.")
+    print("Pipeline Complete! Check 'results/plots' for plots.")
     print("==================================================")
