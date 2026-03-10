@@ -1,11 +1,14 @@
-Version 2 highlights - SVM and stratified K fold recreation of the authors project in python.
+# EEG Project – Version 2 (Python)
 
-Requirements:
+Recreation of the original EEG analysis pipeline in Python, with support for multiple classifiers.
 
-pip install mne numpy pandas scipy scikit-learn pingouin matplotlib seaborn ptitprince rpy2 tqdm
+## Requirements
 
-Install R
+Install the following packages (all mandatory):
 
-Install BayesFactor package inside R
+```bash
+pip install mne numpy pandas scipy scikit-learn pingouin matplotlib seaborn ptitprince rpy2 tqdm joblib
 
-Make sure environmental variable is set for OS path
+#Additionally, you need R installed and the BayesFactor R package:
+
+install.packages("BayesFactor")

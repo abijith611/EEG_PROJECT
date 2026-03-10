@@ -2,6 +2,7 @@
 Plot Decoding Results and Compute Bayes Factors
 Replicates the grid layout, time-bin topographies, and directional Bayes Factors.
 Includes perfectly aligned Topoplots and dedicated Colorbar axes.
+Now supports multiple classifiers via command line argument.
 """
 
 import os
@@ -13,6 +14,7 @@ import matplotlib.gridspec as gridspec
 import matplotlib.colors as mcolors
 import mne
 import warnings
+import glob
 
 R_AVAILABLE = False
 try:
@@ -76,7 +78,7 @@ def calc_bayes_factor_ind(data_win, data_los, rscale="medium", null_interval="c(
         t_stat, _ = stats.ttest_ind(data_win, data_los)
         return pg.bayesfactor_ttest(t_stat, nx=len(data_win), ny=len(data_los), r=rscale)
 
-def plot_decoding(max_pairs=None):
+def plot_decoding(max_pairs=None, classifier='svm'):
     pairs_to_run = pair_ids[:max_pairs] if max_pairs is not None else pair_ids
     num_pairs_run = len(pairs_to_run)
     
@@ -97,14 +99,30 @@ def plot_decoding(max_pairs=None):
         
         for ppt in [1, 2]:
             idx = p_idx * 2 + (ppt - 1)
-            file_path = os.path.join(path_to_data, 'derivatives', f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding.pkl')
-            if not os.path.exists(file_path): continue
+            file_path = os.path.join(path_to_data, 'derivatives', f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding_{classifier}.pkl')
+            if not os.path.exists(file_path):
+                print(f"Warning: {file_path} not found")
+                continue
             with open(file_path, 'rb') as f: res = pickle.load(f)
             for t_idx in range(num_tests):
                 all_decoding[idx, t_idx, :] = res['decoding'][t_idx]
                 searchlight_all[idx, t_idx, :, :] = res['searchlight'][t_idx]
 
-    with open(file_path, 'rb') as f: 
+    # Use first available file to get ch_names
+    first_file = None
+    for p_idx, pair in enumerate(pairs_to_run):
+        for ppt in [1,2]:
+            test_path = os.path.join(path_to_data, 'derivatives', f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding_{classifier}.pkl')
+            if os.path.exists(test_path):
+                first_file = test_path
+                break
+        if first_file:
+            break
+    if first_file is None:
+        print(f"No decoding files found for classifier {classifier}")
+        return
+    
+    with open(first_file, 'rb') as f: 
         res_example = pickle.load(f)
     ch_names_ordered = res_example['ch_names']
 
@@ -190,7 +208,6 @@ def plot_decoding(max_pairs=None):
         # --- MATHEMATICALLY ALIGNED TOPOPLOTS ---
         topo_gs = gridspec.GridSpecFromSubplotSpec(1, 21, subplot_spec=inner_gs[2, 0], wspace=0.0)
         
-        # MISSING LINE RESTORED HERE:
         sl_mean = np.nanmean(searchlight_all[:, t, :, :], axis=0)
         
         col_starts = [1, 5, 9, 13, 17]
@@ -217,8 +234,8 @@ def plot_decoding(max_pairs=None):
         else:
             cb_topo.set_label('Accuracy (%)', fontsize=11, fontweight='bold', labelpad=10)
 
-    plt.savefig(os.path.join(plot_dir, 'Figure2.png'), dpi=300, bbox_inches='tight', pad_inches=0.2, facecolor='white')
-    print("Figure 2 saved.")
+    plt.savefig(os.path.join(plot_dir, f'Figure2_{classifier}.png'), dpi=300, bbox_inches='tight', pad_inches=0.2, facecolor='white')
+    print(f"Figure2_{classifier}.png saved.")
 
     # ---------------------------------------------------------
     # FIGURE 3
@@ -305,12 +322,15 @@ def plot_decoding(max_pairs=None):
             ax_bf.set_xticklabels(['0', '1', '2', '3', '4', '5'])
             ax_bf.set_xlabel('Time (s)', fontsize=12)
 
-        plt.savefig(os.path.join(plot_dir, 'Figure3.png'), dpi=300, bbox_inches='tight', pad_inches=0.2, facecolor='white')
-        print("Figure 3 saved.")
+        plt.savefig(os.path.join(plot_dir, f'Figure3_{classifier}.png'), dpi=300, bbox_inches='tight', pad_inches=0.2, facecolor='white')
+        print(f"Figure3_{classifier}.png saved.")
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--test_pairs', type=int, default=None)
+    parser.add_argument('--classifier', type=str, default='svm',
+                        choices=['svm', 'lda', 'logistic', 'ridge'],
+                        help='Classifier to plot')
     args = parser.parse_args()
-    plot_decoding(max_pairs=args.test_pairs)
+    plot_decoding(max_pairs=args.test_pairs, classifier=args.classifier)

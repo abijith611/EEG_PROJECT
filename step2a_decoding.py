@@ -1,10 +1,11 @@
 """
-Decoding script (fast SVM using SGDClassifier)
+Decoding script (multiple classifiers)
   - Decode own & opponent's response for current & previous trial
-  - Uses linear SVM via SGDClassifier (fast, scalable)
+  - Choose from: svm (SGDClassifier hinge), lda, logistic, ridge
   - Uses stratified 10‑fold cross‑validation with shuffling,
     preserving the group (chunk) structure of pseudo‑trials
   - Parallelised searchlight (optional) with progress feedback
+  - Saves results as pair-XX_player-X_task-RPS_decoding_<clf>.pkl
 """
 
 import os
@@ -12,17 +13,20 @@ import mne
 import numpy as np
 import pandas as pd
 import scipy.io
-from sklearn.linear_model import SGDClassifier
+from sklearn.linear_model import SGDClassifier, LogisticRegression, RidgeClassifier
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import StratifiedGroupKFold, cross_val_score
 import pickle
 from joblib import Parallel, delayed
 import time
+import argparse
 
 # ========== USER ADJUSTABLE PARAMETERS ==========
 N_JOBS_SEARCHLIGHT = -1   # Use all CPU cores for searchlight. Set to 1 to disable parallelism.
 SKIP_SEARCHLIGHT = False  # Set to True to skip searchlight (faster for testing).
+DEFAULT_CLASSIFIERS = ['svm', 'lda', 'logistic', 'ridge']  # can be overridden by command line
 # =================================================
 
 # Optional: tqdm for fancy progress bars
@@ -120,6 +124,22 @@ def create_pseudo_trials(X, y, seed):
     print(f"      Created {total_chunks} pseudo-trials.")
     return np.array(X_pseudo), np.array(y_pseudo), np.array(chunks)
 
+def get_classifier(name, seed):
+    """Return a pipeline (scaler + classifier) for the given name."""
+    if name == 'svm':
+        clf = SGDClassifier(loss='hinge', penalty='l2', alpha=0.0001,
+                            max_iter=1000, tol=1e-3, random_state=seed, n_jobs=1)
+    elif name == 'lda':
+        clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage=0.01)
+    elif name == 'logistic':
+        clf = LogisticRegression(penalty='l2', C=1.0, solver='lbfgs',
+                                 max_iter=1000, random_state=seed, n_jobs=1)
+    elif name == 'ridge':
+        clf = RidgeClassifier(alpha=1.0, random_state=seed)
+    else:
+        raise ValueError(f"Unknown classifier: {name}")
+    return make_pipeline(StandardScaler(), clf)
+
 def compute_searchlight_for_condition(X_ps, y_ps, groups, neighbor_lists, pipeline, cv, n_jobs_outer=N_JOBS_SEARCHLIGHT):
     """Parallel computation of searchlight accuracies with progress reporting."""
     n_chan = X_ps.shape[1]
@@ -152,7 +172,9 @@ def compute_searchlight_for_condition(X_ps, y_ps, groups, neighbor_lists, pipeli
     sl_acc = np.array(results).reshape(n_chan, n_times)
     return sl_acc
 
-def run_decoding(max_pairs=None):
+def run_decoding(max_pairs=None, classifiers=None):
+    if classifiers is None:
+        classifiers = DEFAULT_CLASSIFIERS
     deriv_dir = os.path.join(path_to_data, 'derivatives')
     pairs_to_run = pair_ids[:max_pairs] if max_pairs is not None else pair_ids
     num_pairs = len(pairs_to_run)
@@ -203,82 +225,89 @@ def run_decoding(max_pairs=None):
                 print("      Using fallback neighbour lists (by index).")
                 neighbor_lists = [np.arange(max(0, i-2), min(num_chan, i+3)) for i in range(num_chan)]
 
-            decoding_results = []
-            searchlight_results = []
-            
-            for target_col in target_cols:
-                target_name = target_names[target_col]
-                print(f"      Decoding target: {target_name}")
-                y = behav_data[:, target_col]
-                valid = ~np.isnan(y) & (y > 0)
-                print(f"         Valid trials: {np.sum(valid)}")
-                seed = pair * 10 + ppt
-                X_ps, y_ps, groups = create_pseudo_trials(binned_data[valid], y[valid], seed)
+            # Loop over requested classifiers
+            for clf_name in classifiers:
+                print(f"      Running classifier: {clf_name}")
+                decoding_results = []
+                searchlight_results = []
                 
-                unique_classes = np.unique(y_ps)
-                if len(unique_classes) < 2:
-                    print(f"         WARNING: Only {len(unique_classes)} class(es) in y_ps. Skipping this target.")
-                    decoding_results.append([np.nan]*20)
-                    if not SKIP_SEARCHLIGHT:
+                for target_col in target_cols:
+                    target_name = target_names[target_col]
+                    print(f"         Decoding target: {target_name}")
+                    y = behav_data[:, target_col]
+                    valid = ~np.isnan(y) & (y > 0)
+                    print(f"            Valid trials: {np.sum(valid)}")
+                    seed = pair * 10 + ppt
+                    X_ps, y_ps, groups = create_pseudo_trials(binned_data[valid], y[valid], seed)
+                    
+                    unique_classes = np.unique(y_ps)
+                    if len(unique_classes) < 2:
+                        print(f"            WARNING: Only {len(unique_classes)} class(es) in y_ps. Skipping this target.")
+                        decoding_results.append([np.nan]*20)
+                        if not SKIP_SEARCHLIGHT:
+                            searchlight_results.append(np.full((num_chan,20), np.nan))
+                        continue
+                    
+                    pipeline = get_classifier(clf_name, seed)
+                    cv = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=seed)
+                    
+                    # Time‑resolved decoding (simple average over channels)
+                    print("            Running time-resolved decoding...")
+                    acc_time = []
+                    for t in range(20):
+                        print(f"               Time bin {t+1}/20... ", end='', flush=True)
+                        start_t = time.time()
+                        try:
+                            scores = cross_val_score(pipeline, X_ps[:, :, t], y_ps, groups=groups, cv=cv, n_jobs=1)
+                            mean_score = np.mean(scores)
+                            acc_time.append(mean_score)
+                            elapsed = time.time() - start_t
+                            print(f"done in {elapsed:.2f}s (mean acc={mean_score:.4f})")
+                        except Exception as e:
+                            print(f"ERROR: {e}")
+                            acc_time.append(np.nan)
+                    decoding_results.append(acc_time)
+                    print(f"            Time-resolved done. Overall mean acc: {np.nanmean(acc_time):.4f}")
+                    
+                    # Searchlight – parallelised (skip if flag set)
+                    if SKIP_SEARCHLIGHT:
+                        print("            Skipping searchlight as requested.")
                         searchlight_results.append(np.full((num_chan,20), np.nan))
-                    continue
-                
-                # Create a pipeline: scale then SVM (SGDClassifier with hinge loss)
-                pipeline = make_pipeline(
-                    StandardScaler(),
-                    SGDClassifier(loss='hinge', penalty='l2', alpha=0.0001,
-                                  max_iter=1000, tol=1e-3, random_state=seed,
-                                  n_jobs=1)  # n_jobs=1 inside to avoid nested parallelism
-                )
-                cv = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=seed)
-                
-                # Time‑resolved decoding (simple average over channels)
-                print("         Running time-resolved decoding...")
-                acc_time = []
-                for t in range(20):
-                    print(f"            Time bin {t+1}/20... ", end='', flush=True)
-                    start_t = time.time()
-                    try:
-                        scores = cross_val_score(pipeline, X_ps[:, :, t], y_ps, groups=groups, cv=cv, n_jobs=1)
-                        mean_score = np.mean(scores)
-                        acc_time.append(mean_score)
-                        elapsed = time.time() - start_t
-                        print(f"done in {elapsed:.2f}s (mean acc={mean_score:.4f})")
-                    except Exception as e:
-                        print(f"ERROR: {e}")
-                        acc_time.append(np.nan)
-                decoding_results.append(acc_time)
-                print(f"         Time-resolved done. Overall mean acc: {np.nanmean(acc_time):.4f}")
-                
-                # Searchlight – parallelised (skip if flag set)
-                if SKIP_SEARCHLIGHT:
-                    print("         Skipping searchlight as requested.")
-                    searchlight_results.append(np.full((num_chan,20), np.nan))
-                else:
-                    sl_acc = compute_searchlight_for_condition(
-                        X_ps, y_ps, groups, neighbor_lists, pipeline, cv
-                    )
-                    searchlight_results.append(sl_acc)
-                    print("         Searchlight done.")
-                
-            with open(os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding.pkl'), 'wb') as f:
-                pickle.dump({
-                    'decoding': decoding_results,
-                    'searchlight': searchlight_results,
-                    'ch_names': ch_names
-                }, f)
-            print(f"   Saved results for participant {ppt}")
+                    else:
+                        sl_acc = compute_searchlight_for_condition(
+                            X_ps, y_ps, groups, neighbor_lists, pipeline, cv
+                        )
+                        searchlight_results.append(sl_acc)
+                        print("            Searchlight done.")
+                    
+                # Save results with classifier name in filename
+                out_file = os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding_{clf_name}.pkl')
+                with open(out_file, 'wb') as f:
+                    pickle.dump({
+                        'decoding': decoding_results,
+                        'searchlight': searchlight_results,
+                        'ch_names': ch_names,
+                        'classifier': clf_name
+                    }, f)
+                print(f"      Saved results for classifier {clf_name}")
 
 if __name__ == '__main__':
-    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--test_pairs', type=int, default=None,
                         help='Number of pairs to process (for testing)')
+    parser.add_argument('--classifiers', nargs='+', default=DEFAULT_CLASSIFIERS,
+                        choices=['svm', 'lda', 'logistic', 'ridge'],
+                        help='List of classifiers to run')
     parser.add_argument('--n_jobs', type=int, default=N_JOBS_SEARCHLIGHT,
-                        help='Number of parallel jobs for searchlight (default {}).'.format(N_JOBS_SEARCHLIGHT))
+                        help='Number of parallel jobs for searchlight')
+    parser.add_argument('--skip_searchlight', action='store_true',
+                        help='Skip searchlight computation')
     args = parser.parse_args()
-    if args.n_jobs != N_JOBS_SEARCHLIGHT:
-        N_JOBS_SEARCHLIGHT = args.n_jobs
+    
+    N_JOBS_SEARCHLIGHT = args.n_jobs
+    SKIP_SEARCHLIGHT = args.skip_searchlight
     print(f"Using {N_JOBS_SEARCHLIGHT} parallel workers for searchlight.")
     print(f"SKIP_SEARCHLIGHT = {SKIP_SEARCHLIGHT}")
-    run_decoding(max_pairs=args.test_pairs)
+    print(f"Classifiers to run: {args.classifiers}")
+    
+    run_decoding(max_pairs=args.test_pairs, classifiers=args.classifiers)

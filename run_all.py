@@ -1,9 +1,8 @@
 """
 Master script to run the entire EEG pipeline sequentially.
 Usage:
-  python run_all.py                   -> Runs on all 31 pairs
-  python run_all.py --test_pairs 4    -> Runs on just the first 4 pairs
-  python step3b_plot_Fig2_Fig3.py --test_pairs 4 -> Just plots decoding for first 4 pairs (useful for testing)
+  python run_all.py [--test_pairs N] [--classifiers LIST] [--skip_searchlight]
+  python run_all.py --test_pairs 4 --classifiers svm lda logistic ridge
 """
 
 import argparse
@@ -21,17 +20,24 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run full EEG pipeline")
     parser.add_argument('--test_pairs', type=int, default=None, 
                         help="Limit the number of pairs to process for testing (e.g., 4)")
+    parser.add_argument('--classifiers', nargs='+', default=['svm', 'lda', 'logistic', 'ridge'],
+                        choices=['svm', 'lda', 'logistic', 'ridge'],
+                        help="List of classifiers to run in decoding step")
+    parser.add_argument('--skip_searchlight', action='store_true',
+                        help="Skip searchlight computation (faster)")
     args = parser.parse_args()
     
     print("==================================================")
     print(f"Starting pipeline... {'(TESTING ON ' + str(args.test_pairs) + ' PAIRS)' if args.test_pairs else '(FULL RUN)'}")
+    print(f"Classifiers: {', '.join(args.classifiers)}")
     print("==================================================\n")
     
     print("\n>>> STEP 1: PREPROCESSING <<<")
     step1_preprocessing.run_preprocessing(max_pairs=args.test_pairs)
     
     print("\n>>> STEP 2a: DECODING <<<")
-    step2a_decoding.run_decoding(max_pairs=args.test_pairs)
+    # Pass classifiers list to step2a
+    step2a_decoding.run_decoding(max_pairs=args.test_pairs, classifiers=args.classifiers)
     
     print("\n>>> STEP 2b: MARKOV CHAIN PREDICTABILITY <<<")
     step2b_markovchain.run_markov(max_pairs=args.test_pairs)
@@ -40,7 +46,10 @@ if __name__ == '__main__':
     step3a_plot_Fig1.plot_behavior(max_pairs=args.test_pairs)
     
     print("\n>>> STEP 3b: PLOTTING FIGURES 2 & 3 (DECODING & BFS) <<<")
-    step3b_plot_Fig2_Fig3.plot_decoding(max_pairs=args.test_pairs)
+    # Plot for each classifier
+    for clf in args.classifiers:
+        print(f"\n--- Plotting for classifier: {clf} ---")
+        step3b_plot_Fig2_Fig3.plot_decoding(max_pairs=args.test_pairs, classifier=clf)
     
     print("\n>>> DEBUG: DECODING STATISTICS <<<")
     debug_decoding.run_debug()
