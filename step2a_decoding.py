@@ -27,6 +27,7 @@ import argparse
 N_JOBS_SEARCHLIGHT = -1   # Use all CPU cores for searchlight. Set to 1 to disable parallelism.
 SKIP_SEARCHLIGHT = False  # Set to True to skip searchlight (faster for testing).
 DEFAULT_CLASSIFIERS = ['svm', 'lda', 'logistic', 'ridge']  # can be overridden by command line
+SEARCHLIGHT_CLASSIFIERS = {'svm', 'lda'}   # only these will run searchlight
 # =================================================
 
 # Optional: tqdm for fancy progress bars
@@ -230,7 +231,7 @@ def run_decoding(max_pairs=None, classifiers=None):
                 print(f"      Running classifier: {clf_name}")
                 decoding_results = []
                 searchlight_results = []
-                
+                SKIP_SEARCHLIGHT = clf_name not in SEARCHLIGHT_CLASSIFIERS
                 for target_col in target_cols:
                     target_name = target_names[target_col]
                     print(f"         Decoding target: {target_name}")

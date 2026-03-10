@@ -2,7 +2,7 @@
 Plot Decoding Results and Compute Bayes Factors
 Replicates the grid layout, time-bin topographies, and directional Bayes Factors.
 Includes perfectly aligned Topoplots and dedicated Colorbar axes.
-Now supports multiple classifiers via command line argument.
+Now supports a single classifier argument; if omitted, plots all available classifiers.
 """
 
 import os
@@ -16,6 +16,8 @@ import mne
 import warnings
 import glob
 
+
+SEARCHLIGHT_CLASSIFIERS = {'svm', 'lda'}   # only these will run searchlight
 R_AVAILABLE = False
 try:
     import rpy2.robjects as robjects
@@ -130,6 +132,9 @@ def plot_decoding(max_pairs=None, classifier='svm'):
     montage = mne.channels.make_standard_montage('biosemi64')
     info.set_montage(montage)
 
+    # Check if searchlight data is all NaN (e.g., for logistic/ridge)
+    has_searchlight = classifier in SEARCHLIGHT_CLASSIFIERS
+
     # ---------------------------------------------------------
     # FIGURE 2
     # ---------------------------------------------------------
@@ -142,15 +147,20 @@ def plot_decoding(max_pairs=None, classifier='svm'):
     for t in range(num_tests):
         row, col = t // 2, t % 2
         
-        # PRO LAYOUT: Main plot area (21 parts) + Dedicated Colorbar area (1 part)
-        inner_gs = gridspec.GridSpecFromSubplotSpec(3, 2, subplot_spec=gs2[row, col],
-                                                     height_ratios=[4, 0.5, 1.2], width_ratios=[21, 1], 
-                                                     hspace=0.2, wspace=0.05)
+        # If no searchlight, use only 2 rows (main + BF), skip topo row
+        if has_searchlight:
+            inner_gs = gridspec.GridSpecFromSubplotSpec(3, 2, subplot_spec=gs2[row, col],
+                                                         height_ratios=[4, 0.5, 1.2], width_ratios=[21, 1], 
+                                                         hspace=0.2, wspace=0.05)
+            ax_topo_cb = fig2.add_subplot(inner_gs[2, 1])
+        else:
+            inner_gs = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs2[row, col],
+                                                         height_ratios=[4, 0.5], width_ratios=[21, 1], 
+                                                         hspace=0.2, wspace=0.05)
         
         ax_main = fig2.add_subplot(inner_gs[0, 0])
         ax_bf = fig2.add_subplot(inner_gs[1, 0], sharex=ax_main)
-        ax_bf_cb = fig2.add_subplot(inner_gs[1, 1])  # Dedicated BF colorbar axis
-        ax_topo_cb = fig2.add_subplot(inner_gs[2, 1]) # Dedicated Topo colorbar axis
+        ax_bf_cb = fig2.add_subplot(inner_gs[1, 1])
         
         data_t = all_decoding[:, t, :]
         data_mean = np.nanmean(data_t * 100, axis=0)
@@ -185,7 +195,6 @@ def plot_decoding(max_pairs=None, classifier='svm'):
             if len(slice_w) > 2:
                 bfs[w] = calc_bayes_factor(slice_w)
                 
-        # --- BAYES FACTOR SCATTER & SCALED COLORBAR ---
         ax_bf.scatter(x_axis_bins, [0]*20, color='lightgray', s=90, alpha=0.8)
         sc = ax_bf.scatter(x_axis_bins, [0]*20, c=np.log10(bfs), cmap='RdBu_r', vmin=-6, vmax=6, s=90)
         
@@ -205,40 +214,44 @@ def plot_decoding(max_pairs=None, classifier='svm'):
         ax_bf.set_xticklabels(['0', '1', '2', '3', '4', '5'])
         ax_bf.set_xlabel('Time (s)', fontsize=12)
         
-        # --- MATHEMATICALLY ALIGNED TOPOPLOTS ---
-        topo_gs = gridspec.GridSpecFromSubplotSpec(1, 21, subplot_spec=inner_gs[2, 0], wspace=0.0)
-        
-        sl_mean = np.nanmean(searchlight_all[:, t, :, :], axis=0)
-        
-        col_starts = [1, 5, 9, 13, 17]
-        col_ends   = [4, 8, 12, 16, 20]
-        timebins = [(0, 4), (4, 8), (8, 12), (12, 16), (16, 20)] 
-        
-        for idx, (t_start, t_end) in enumerate(timebins):
-            ax_topo = fig2.add_subplot(topo_gs[0, col_starts[idx]:col_ends[idx]])
-            topo_data = np.nanmean(sl_mean[:, t_start:t_end], axis=1)
-            mne.viz.plot_topomap(topo_data, info, axes=ax_topo, show=False, vlim=(0.3333, 0.36), 
-                                 cmap=custom_hot, contours=0, sphere=None)
-            ax_topo.set_title(f'{idx+1}s', pad=2, fontsize=12, fontweight='bold')
+        # Topoplots – only if searchlight data exists
+        if has_searchlight:
+            topo_gs = gridspec.GridSpecFromSubplotSpec(1, 21, subplot_spec=inner_gs[2, 0], wspace=0.0)
+            sl_mean = np.nanmean(searchlight_all[:, t, :, :], axis=0)
+            
+            col_starts = [1, 5, 9, 13, 17]
+            col_ends   = [4, 8, 12, 16, 20]
+            timebins = [(0, 4), (4, 8), (8, 12), (12, 16), (16, 20)] 
+            
+            for idx, (t_start, t_end) in enumerate(timebins):
+                ax_topo = fig2.add_subplot(topo_gs[0, col_starts[idx]:col_ends[idx]])
+                topo_data = np.nanmean(sl_mean[:, t_start:t_end], axis=1)
+                mne.viz.plot_topomap(topo_data, info, axes=ax_topo, show=False, vlim=(0.3333, 0.36), 
+                                     cmap=custom_hot, contours=0, sphere=None)
+                ax_topo.set_title(f'{idx+1}s', pad=2, fontsize=12, fontweight='bold')
 
-        # --- TOPOPLOT COLORBAR ---
-        sm_topo = plt.cm.ScalarMappable(cmap=custom_hot, norm=plt.Normalize(vmin=0.3333, vmax=0.36))
-        sm_topo.set_array([])
-        cb_topo = fig2.colorbar(sm_topo, cax=ax_topo_cb)
-        cb_topo.set_ticks([0.3333, 0.36])
-        cb_topo.set_ticklabels(['33.3%', '36.0%'])
-        cb_topo.ax.tick_params(labelsize=10)
-        
-        if col == 0:
-            ax_topo_cb.set_visible(False)
+            # Topo colorbar
+            sm_topo = plt.cm.ScalarMappable(cmap=custom_hot, norm=plt.Normalize(vmin=0.3333, vmax=0.36))
+            sm_topo.set_array([])
+            cb_topo = fig2.colorbar(sm_topo, cax=ax_topo_cb)
+            cb_topo.set_ticks([0.3333, 0.36])
+            cb_topo.set_ticklabels(['33.3%', '36.0%'])
+            cb_topo.ax.tick_params(labelsize=10)
+            
+            if col == 0:
+                ax_topo_cb.set_visible(False)
+            else:
+                cb_topo.set_label('Accuracy (%)', fontsize=11, fontweight='bold', labelpad=10)
         else:
-            cb_topo.set_label('Accuracy (%)', fontsize=11, fontweight='bold', labelpad=10)
+            # Hide the extra colorbar axes if they exist
+            if 'ax_topo_cb' in locals():
+                ax_topo_cb.set_visible(False)
 
     plt.savefig(os.path.join(plot_dir, f'Figure2_{classifier}.png'), dpi=300, bbox_inches='tight', pad_inches=0.2, facecolor='white')
     print(f"Figure2_{classifier}.png saved.")
 
     # ---------------------------------------------------------
-    # FIGURE 3
+    # FIGURE 3 (same logic – skip topoplots if no searchlight)
     # ---------------------------------------------------------
     if len(winners_idx) >= 1:
         fig3 = plt.figure(figsize=(16, 13), layout='constrained')
@@ -250,9 +263,15 @@ def plot_decoding(max_pairs=None, classifier='svm'):
         for t in range(num_tests):
             row, col = t // 2, t % 2
             
-            inner_gs = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs3[row, col],
-                                                         height_ratios=[3, 1.2], width_ratios=[21, 1], 
-                                                         hspace=0.15, wspace=0.05)
+            # Same height ratio adjustment as Figure 2
+            if has_searchlight:
+                inner_gs = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs3[row, col],
+                                                             height_ratios=[3, 1.2], width_ratios=[21, 1], 
+                                                             hspace=0.15, wspace=0.05)
+            else:
+                inner_gs = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs3[row, col],
+                                                             height_ratios=[3, 1.2], width_ratios=[21, 1], 
+                                                             hspace=0.15, wspace=0.05)  # same – no topo row in Figure 3 anyway
             
             ax_main = fig3.add_subplot(inner_gs[0, 0])
             ax_bf = fig3.add_subplot(inner_gs[1, 0], sharex=ax_main)
@@ -329,8 +348,28 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--test_pairs', type=int, default=None)
-    parser.add_argument('--classifier', type=str, default='svm',
+    parser.add_argument('--classifier', type=str, default=None,
                         choices=['svm', 'lda', 'logistic', 'ridge'],
-                        help='Classifier to plot')
+                        help='Classifier to plot. If omitted, plots all available classifiers.')
     args = parser.parse_args()
-    plot_decoding(max_pairs=args.test_pairs, classifier=args.classifier)
+
+    # Find all available classifiers from existing decoding files
+    if args.classifier is None:
+        pattern = os.path.join(path_to_data, 'derivatives', 'pair-*_player-*_task-RPS_decoding_*.pkl')
+        files = glob.glob(pattern)
+        classifiers = set()
+        for f in files:
+            base = os.path.basename(f)
+            suffix = base.split('decoding_')[1].replace('.pkl', '')
+            classifiers.add(suffix)
+        if not classifiers:
+            print("No decoding files found.")
+            sys.exit(1)
+        classifiers = sorted(classifiers)
+        print(f"Found classifiers: {classifiers}")
+    else:
+        classifiers = [args.classifier]
+
+    for clf in classifiers:
+        print(f"\n--- Plotting for classifier: {clf} ---")
+        plot_decoding(max_pairs=args.test_pairs, classifier=clf)
