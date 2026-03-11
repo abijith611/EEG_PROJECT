@@ -31,7 +31,7 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 ├── biosemi64.mat # Channel coordinates (used for topoplots)  
 ├── debug_decoding.py # Diagnostic script that prints decoding statistics  
 ├── project/ds006761 # The dataset directory  
-├── Dockerfile # Docker image definition (Python 3.11.9 + R + BayesFactor)  
+├── Dockerfile # Docker image definition (Python 3.11.9 + R + BayesFactor via Conda)
 ├── .dockerignore # This ignores the entire project/ folder and other unnecessary files during the build
 ├── docker-compose.yml # Docker Compose configuration (mounts data volumes)  
 ├── download_data.sh # Entrypoint script that downloads dataset via DataLad  
@@ -166,6 +166,12 @@ docker-compose run eeg-pipeline --test_pairs 4 --classifiers svm lda
 ```  
 Results are saved in project/ds006761/derivatives/ and results/plots/ on your host machine.
 
+Note: If you ever need to rebuild the Docker image from scratch (e.g., after modifying the Dockerfile), use:
+```
+docker-compose build --no-cache
+docker-compose down --remove-orphans
+```
+
 ## Usage
 
 The main entry point is run_all.py. It sequentially executes all preprocessing, decoding, Markov chain, and plotting steps.
@@ -298,7 +304,7 @@ For each subject and classifier, a pickle file named pair-XX_player-Y_task-RPS_d
 
 - **Random seeds** are set in step2a_decoding.py (using pair and player IDs) to ensure consistent pseudo‑trial creation and cross‑validation splits.
 - **Python version** is pinned to 3.11.9 in the Docker image.
-- **R version** is the latest from Debian's repositories, but BayesFactor is installed from CRAN, ensuring a known version.
+- **R and BayesFactor** are installed via Conda, guaranteeing a consistent, pre‑compiled environment.
 - **Docker** guarantees that the exact same software stack runs on any machine.
 
 ## Troubleshooting
