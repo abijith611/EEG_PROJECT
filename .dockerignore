@@ -1,0 +1,25 @@
+# Exclude the dataset folder (mounted at runtime)
+project/
+ds006761-1.0.0.sh
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Git
+.git/
+.gitignore
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs and temporary files
+*.log
+*.pkl
+*.npy
+*.fif
+*.mat
+
+# Results (will be saved in mounted volume)
+results/
