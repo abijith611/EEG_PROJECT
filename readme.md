@@ -140,7 +140,7 @@ datalad get .
 ```
     python run_all.py  
 ```
-    <br/>_(Add optional arguments as described in the_ [_Usage_](#usage) _section.)_
+_(Add optional arguments as described in the_ [_Usage_](#usage) _section.)_
 
 ### Option 2: Docker (Recommended)
 
@@ -149,8 +149,8 @@ This method guarantees an identical environment and handles the dataset download
 - **Install Docker and Docker Compose** (Docker Desktop includes both).
 - **Clone the repository**  
 ```
-    git clone &lt;your-repo-url&gt;  
-    cd &lt;repo-folder&gt;  
+    git clone <your-repo-url>
+    cd <repo-folder>
 ```
 
 - **Run the pipeline**  
