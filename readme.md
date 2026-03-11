@@ -27,6 +27,7 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 
 ## Repository Structure
 
+```text
 .  
 ├── bayes_output.py # Computes directional Bayes Factors for winners vs. losers  
 ├── biosemi64.mat # Channel coordinates (used for topoplots)  
