@@ -37,7 +37,7 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 ├── step2b_markovchain.py    # Markov chain analysis of response predictability  
 ├── step3a_plot_Fig1.py      # Generates Figure 1 (behavioural results)  
 ├── step3b_plot_Fig2_Fig3.py # Generates Figures 2 & 3 (decoding accuracy and Bayes factors)  
-└── results/plots/           # Output directory for figures (created automatically)  
+└── EEG-PROJECT/results/plots/           # Output directory for figures (created automatically)  
 
 ```
 
