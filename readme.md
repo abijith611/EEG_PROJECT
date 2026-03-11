@@ -12,7 +12,6 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 - [Dataset](#dataset)
 - [Setup Instructions](#setup-instructions)
   - [Option 1: Manual Installation](#option-1-manual-installation)
-  - [Option 2: Docker (Recommended)](#option-2-docker-recommended)
 - [Usage](#usage)
   - [Command‑Line Arguments](#command-line-arguments)
   - [Examples](#examples)
@@ -32,12 +31,10 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 ├── config.py # Central Configuration file (paths, constants, classifier lists) 
 ├── debug_decoding.py # Diagnostic script that prints decoding statistics  
 ├── project/ds006761 # The dataset directory  
-├── Dockerfile # Docker image definition (Python 3.11.9 + R + BayesFactor via Conda)
-├── .dockerignore # This ignores the entire project/ folder and other unnecessary files during the build
-├── docker-compose.yml # Docker Compose configuration (mounts data volumes)  
 ├── download_data.sh # Entrypoint script that downloads dataset via DataLad  
-├── README.md # This file  
-├── run_all.py # Master script that runs the entire pipeline  
+├── README.md # This file 
+├── setup_pipeline.py # Setup script for the entire pipeline  
+├── run_pipeline.py # Master script that runs the entire pipeline  
 ├── step1_preprocessing.py # Raw data import, bad channel repair, epoching, downsampling  
 ├── step2a_decoding.py # Time‑resolved and searchlight decoding (multiple classifiers)  
 ├── step2b_markovchain.py # Markov chain analysis of response predictability  
@@ -53,12 +50,10 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 
 - **Python 3.11.9** (the exact version used for development)
 - **R** (with the BayesFactor package)
-- **Docker** (optional, but strongly recommended)
-
 ### Python Packages
 
 The following packages are required (install via pip):
-
+```t
 mne  
 numpy  
 pandas  
@@ -70,16 +65,11 @@ rpy2
 tqdm  
 joblib  
 datalad # for automated dataset download (optional if you already have the data)  
-
-_All packages are listed in the Dockerfile and will be installed automatically when using Docker._
+```
 
 ### R Package
 
-- **BayesFactor** - install inside R with:
-
-```R
-install.packages("BayesFactor", repos = "https://cloud.r-project.org/")
-```
+- **BayesFactor**  – will be installed automatically by the setup script if R is available.
 
 ## Dataset
 
@@ -87,8 +77,6 @@ The full EEG dataset is **78 GB** and must be downloaded from OpenNeuro.
 
 **DOI:** 
 - [10.18112/openneuro.ds006761.v1.0.0](<https://openneuro.org/datasets/ds006761>)
-
-If you use the Docker method, the dataset will be downloaded automatically via datalad.
 
 If you install manually, you can download it using datalad:
 ```
@@ -103,31 +91,44 @@ datalad get .
 
 ### Option 1: Manual Installation
 
-- **Clone the repository**  
+- **1. Clone the repository**  
 ```
 git clone <your-repo-url>
 cd <repo-folder>
 ```
 
-- **Create and activate a Python virtual environment** _(recommended)_  
-```
-python3.11 -m venv venv  
-source venv/bin/activate # On Windows: venv\\Scripts\\activate  
-```
+- **2. Run the automated setup script** _(recommended)_  
 
-- **Install Python packages**  
-```
-pip install mne numpy pandas scipy scikit-learn pingouin matplotlib rpy2 tqdm joblib datalad  
-```
+We provide a cross‑platform setup script (`setup_pipeline.py`) that:
 
-- **Install R and BayesFactor**
-  - Install R from <https://www.r-project.org/>
-  - In R, run:  
+Checks your Python version and installs Python 3.11 if needed (using your system’s package manager).
 
-```R
-install.packages("BayesFactor", repos = "https://cloud.r-project.org/")
+Installs Git, R, and the required R package (`BayesFactor`).
+
+Creates a Python virtual environment and installs all Python dependencies.
+
+Downloads the full EEG dataset (~78 GB) via DataLad (if not already present).
 ```
+python setup_pipeline.py
+```
+The script supports **Windows, macOS, Ubuntu, and Linux Mint**. For other Linux distributions it will provide manual instructions.
 
+- Note: The dataset download can take a long time and requires a stable internet connection. If you already have the dataset, place it in `project/ds006761/` before running the script – it will detect it and skip the download.
+
+- **3. Activate the virtual environment (optional)**  
+The setup script creates a virtual environment named `venv_eeg`. To use it manually (e.g., for development), activate it:
+
+- Windows: `venv_eeg\Scripts\activate`
+
+- macOS/Linux: `source venv_eeg/bin/activate`
+
+- **4. Run the pipeline**
+After setup, you can run the full analysis with: 
+
+```
+python run_all.py
+```
+Add optional arguments as described in the Usage section.
 - **Download the dataset** _(if not already present)_  
 ```
 mkdir -p project/ds006761
@@ -143,39 +144,10 @@ python run_all.py
 ```
 _(Add optional arguments as described in the_ [_Usage_](#usage) _section.)_
 
-### Option 2: Docker (Recommended)
-
-This method guarantees an identical environment and handles the dataset download automatically.
-
-- **Install Docker and Docker Compose** (Docker Desktop includes both).
-- **Clone the repository**  
-```
-git clone <your-repo-url>
-cd <repo-folder>
-```
-
-- **Run the pipeline**  
-```
-docker-compose up  
-```
-  - **First run:** The Docker image will be built (Python 3.11.9, R, BayesFactor, all Python packages). Then the dataset will be downloaded via datalad into project/ds006761/ (on your host). This may take a while (78 GB). Subsequent runs will skip the download.
-  - After the download, the full pipeline executes with default settings (all pairs, all classifiers).
-
-To run a smaller test (e.g., first 4 pairs with only SVM and LDA), use:
-```
-docker-compose run eeg-pipeline --test_pairs 4 --classifiers svm lda
-```  
-Results are saved in project/ds006761/derivatives/ and results/plots/ on your host machine.
-
-Note: If you ever need to rebuild the Docker image from scratch (e.g., after modifying the Dockerfile), use:
-```
-docker-compose build --no-cache
-docker-compose down --remove-orphans
-```
 
 ## Usage
 
-The main entry point is run_all.py. It sequentially executes all preprocessing, decoding, Markov chain, and plotting steps.
+The main entry point is `run_all.py`. It sequentially executes all preprocessing, decoding, Markov chain, and plotting steps.
 
 ### Command‑Line Arguments
 
@@ -216,7 +188,13 @@ N_JOBS_SEARCHLIGHT = -1 # Use all available CPU cores
 
 ## Outputs
 
-All generated files are stored in project/ds006761/derivatives/ (for decoding results) and results/plots/ (for figures).
+All generated files are stored in:
+
+`project/ds006761/derivatives/` – decoding results (`.pkl` files)
+
+`results/plots/` – figures (`Figure1.png`, `Figure2_*.png`, `Figure3_*.png`)
+
+Refer to the original README for detailed descriptions of each output file.
 
 ### Decoding Results (per classifier)
 
@@ -306,25 +284,19 @@ Central configuration file that holds all shared constants and settings used by 
 - Master script that calls all the above in order.
 - Parses command‑line arguments and passes them to each step.
 
-### Dockerfile & docker-compose.yml
-
-- Define the containerised environment.
-- download_data.sh is the entrypoint: it checks for the dataset, downloads it if missing, then runs run_all.py.
-
 ## Reproducibility Notes
 
-- **Random seeds** are set in step2a_decoding.py (using pair and player IDs) to ensure consistent pseudo‑trial creation and cross‑validation splits.
-- **Python version** is pinned to 3.11.9 in the Docker image.
-- **R and BayesFactor** are installed via Conda, guaranteeing a consistent, pre‑compiled environment.
-- **Docker** guarantees that the exact same software stack runs on any machine.
+- **Random seeds** are set in `step2a_decoding.py` (using pair and player IDs) to ensure consistent pseudo‑trial creation and cross‑validation splits.
+- **Python version** is pinned to 3.11.9 – the setup script will attempt to install it if not present.
+- **R and BayesFactor** are installed automatically by the script, guaranteeing a consistent environment.
+For further details, refer to the original documentation or contact the authors.
 
 ## Troubleshooting
 
-- **Docker Build Fails:** Ensure Docker Desktop is running and you have a stable internet connection. If git-annex fails to install, comment out that line (it is only needed for datalad; you can also download the dataset manually and place it in project/ds006761).
-- **Dataset Download Takes Too Long:** The dataset is 78 GB; a fast internet connection is essential. You can manually download the dataset using datalad outside Docker and place it in project/ds006761 before running docker-compose up. The script will detect it and skip the download.
-- **R or BayesFactor Not Found:** In manual installation, ensure R is in your PATH and that BayesFactor is installed correctly. In Docker, the installation is automated; if issues persist, check the Docker build logs.
-- **Memory Errors:** The searchlight step is memory‑intensive. Use --skip_searchlight for testing. If you run out of RAM, reduce the number of parallel jobs by setting N_JOBS_SEARCHLIGHT in step2a_decoding.py to a lower number (e.g., 2 or 4) instead of -1.
-
+- **`setup_pipeline.py` fails on Windows:** Ensure you have administrative privileges – the script may need to install Git, R, or Python via Chocolatey or winget. If automatic installation fails, install the missing components manually and rerun the script.
+- **R or BayesFactor not found:** After installation, make sure Rscript is in your system PATH. On Windows you may need to restart your terminal.
+- **Memory errors during searchlight:** Use `--skip_searchlight` for testing, or reduce the number of parallel jobs in `step2a_decoding.py` (change `N_JOBS_SEARCHLIGHT`).
+- **Dataset download is slow or interrupted:** You can download the dataset manually using DataLad or directly from OpenNeuro, then place it in `project/ds006761/` before running `setup_pipeline.py`.
 ## References
 
 - **Original dataset:** OpenNeuro [ds006761](https://openneuro.org/datasets/ds006761)
@@ -332,4 +304,4 @@ Central configuration file that holds all shared constants and settings used by 
 - **BayesFactor R package:** <https://cran.r-project.org/package=BayesFactor>
 - **MNE‑Python:** <https://mne.tools/>
 
-For any questions, please contact [Shriram](<mailto:st194304@stud.uni-stuttgart.de>), [Abijith],  [Tejesh].
+For any questions, please contact [Shriram](<mailto:st194304@stud.uni-stuttgart.de>), [Abijith](<mailto:st194438@stud.uni-stuttgart.de>),  [Tejesh](<mailto:st194770@stud.uni-stuttgart.de>).
