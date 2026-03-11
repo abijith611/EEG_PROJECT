@@ -112,7 +112,7 @@ datalad get .
 - **Install R and BayesFactor**
   - Install R from <https://www.r-project.org/>
   - In R, run:  
-        install.packages("BayesFactor", repos="\[<https://cloud.r-project.org/\>](<https://cloud.r-project.org/>)")  
+        install.packages("BayesFactor", repos = "https://cloud.r-project.org/")
 
 - **Download the dataset** _(if not already present)_  
     mkdir -p project/ds006761  
