@@ -34,4 +34,4 @@ COPY . /app
 # Make entrypoint executable
 RUN chmod +x /app/download_data.sh
 
-ENTRYPOINT ["/app/download_data.sh"]
+ENTRYPOINT ["conda", "run", "-n", "eeg", "/app/download_data.sh"]
