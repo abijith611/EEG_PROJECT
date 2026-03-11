@@ -1,17 +1,15 @@
 # EEG Project - Decoding Rock-Paper-Scissors Game
 
-This repository contains a complete Python pipeline for analyzing EEG data from a competitive Rock-Paper-Scissors (RPS) game. The project replicates and extends the original MATLAB analysis, adding support for multiple classifiers, Bayesian statistics, and publication‑ready figures. The goal is to decode players' own and opponent's responses from EEG signals, compare winners and losers, and evaluate the predictability of moves using Markov chains.
+This repository contains a complete Python pipeline for analyzing EEG data from a competitive Rock-Paper-Scissors (RPS) game. The project replicates and extends the original MATLAB analysis, adding support for multiple classifiers, Bayesian statistics, and publication-ready figures. The goal is to decode players' own and opponent's responses from EEG signals, compare winners and losers, and evaluate the predictability of moves using Markov chains.
 
 ## Table of Contents
 
 - [Repository Structure](#repository-structure)
 - [Requirements](#requirements)
-  - [Software](#software)
-  - [Python Packages](#python-packages)
-  - [R Package](#r-package)
 - [Dataset](#dataset)
 - [Setup Instructions](#setup-instructions)
-  - [Option 1: Manual Installation](#option-1-manual-installation)
+  - [Automated Setup (Recommended)](#automated-setup-(recommended))
+  - [Manual Setup](#manual-setup)
 - [Usage](#usage)
   - [Command‑Line Arguments](#command-line-arguments)
   - [Examples](#examples)
@@ -26,21 +24,20 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 
 ```t
 .  
-├── bayes_output.py # Computes directional Bayes Factors for winners vs. losers  
-├── biosemi64.mat # Channel coordinates (used for topoplots)  
-├── config.py # Central Configuration file (paths, constants, classifier lists) 
-├── debug_decoding.py # Diagnostic script that prints decoding statistics  
-├── project/ds006761 # The dataset directory  
-├── download_data.sh # Entrypoint script that downloads dataset via DataLad  
-├── README.md # This file 
-├── setup_pipeline.py # Setup script for the entire pipeline  
-├── run_pipeline.py # Master script that runs the entire pipeline  
-├── step1_preprocessing.py # Raw data import, bad channel repair, epoching, downsampling  
-├── step2a_decoding.py # Time‑resolved and searchlight decoding (multiple classifiers)  
-├── step2b_markovchain.py # Markov chain analysis of response predictability  
-├── step3a_plot_Fig1.py # Generates Figure 1 (behavioural results)  
+├── bayes_output.py          # Computes directional Bayes Factors for winners vs. losers  
+├── biosemi64.mat            # Channel coordinates (used for topoplots)  
+├── config.py                # Central configuration file (paths, constants, classifier lists) 
+├── debug_decoding.py        # Diagnostic script that prints decoding stats & plots averages
+├── project/ds006761/        # The dataset directory (created during setup)
+├── README.md                # This documentation file 
+├── setup_pipeline.py        # Automated cross-platform setup script  
+├── run_pipeline.py          # Master script that executes the entire pipeline  
+├── step1_preprocessing.py   # Raw data import, bad channel repair, epoching, downsampling  
+├── step2a_decoding.py       # Time-resolved and searchlight decoding (multiple classifiers)  
+├── step2b_markovchain.py    # Markov chain analysis of response predictability  
+├── step3a_plot_Fig1.py      # Generates Figure 1 (behavioural results)  
 ├── step3b_plot_Fig2_Fig3.py # Generates Figures 2 & 3 (decoding accuracy and Bayes factors)  
-└── EEG-PROJECT/results/plots/ # Output directory for figures (created automatically)  
+└── results/plots/           # Output directory for figures (created automatically)  
 
 ```
 
@@ -48,11 +45,13 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 
 ### Software
 
-- **Python 3.11.9** (the exact version used for development)
-- **R** (with the BayesFactor package)
+- **Python 3.11+** (The setup script will attempt to install this if missing)
+- **R** (Required for the `BayesFactor` package; fallback available via `pingouin` if R fails)
+- **Git**
 ### Python Packages
 
-The following packages are required (install via pip):
+The pipeline requires the following packages (handled automatically by setup):
+
 ```t
 mne  
 numpy  
@@ -64,12 +63,12 @@ matplotlib
 rpy2  
 tqdm  
 joblib  
-datalad # for automated dataset download (optional if you already have the data)  
+datalad  
 ```
 
-### R Package
+### R Packages
 
-- **BayesFactor**  – will be installed automatically by the setup script if R is available.
+- **BayesFactor**  – Installed automatically by the setup script via `rpy2` / `Rscript`.
 
 ## Dataset
 
@@ -78,18 +77,14 @@ The full EEG dataset is **78 GB** and must be downloaded from OpenNeuro.
 **DOI:** 
 - [10.18112/openneuro.ds006761.v1.0.0](<https://openneuro.org/datasets/ds006761>)
 
-If you install manually, you can download it using datalad:
-```
-pip install datalad
-datalad install https://github.com/OpenNeuroDatasets/ds006761.git project/ds006761
-cd project/ds006761
-datalad get .
+The automated setup script handles this via DataLad. If you already have the dataset downloaded, simply place it in `project/ds006761/` before running the setup script, and the download step will be skipped automatically.
 
-```
 
 ## Setup Instructions
 
-### Option 1: Manual Installation
+### Automated Setup (Recommended)
+
+We provide a cross-platform setup script (`setup_pipeline.py`) that checks your Python version, installs Git/R if needed, creates a virtual environment (`venv_eeg`), installs all dependencies, and downloads the 78 GB dataset via DataLad. It supports Windows, macOS, Ubuntu, and Linux Mint.
 
 - **1. Clone the repository**  
 ```
@@ -99,52 +94,43 @@ cd <repo-folder>
 
 - **2. Run the automated setup script** _(recommended)_  
 
-We provide a cross‑platform setup script (`setup_pipeline.py`) that:
-
-Checks your Python version and installs Python 3.11 if needed (using your system’s package manager).
-
-Installs Git, R, and the required R package (`BayesFactor`).
-
-Creates a Python virtual environment and installs all Python dependencies.
-
-Downloads the full EEG dataset (~78 GB) via DataLad (if not already present).
 ```
 python setup_pipeline.py
 ```
-The script supports **Windows, macOS, Ubuntu, and Linux Mint**. For other Linux distributions it will provide manual instructions.
+- _Note: The dataset download can take a long time and requires a stable internet connection. If you already have the dataset, place it in `project/ds006761/` before running the script – it will detect it and skip the download._
 
-- Note: The dataset download can take a long time and requires a stable internet connection. If you already have the dataset, place it in `project/ds006761/` before running the script – it will detect it and skip the download.
-
-- **3. Activate the virtual environment (optional)**  
-The setup script creates a virtual environment named `venv_eeg`. To use it manually (e.g., for development), activate it:
+- **3. Activate the virtual environment:** After the script completes, activate the newly created environment:
 
 - Windows: `venv_eeg\Scripts\activate`
-
 - macOS/Linux: `source venv_eeg/bin/activate`
 
-- **4. Run the pipeline**
-After setup, you can run the full analysis with: 
+### Manual Setup
+If you prefer to set up the environment manually (or are using an unsupported OS):
 
+- **1. Create and activate a virtual environment:**
+
+```t
+python3 -m venv venv_eeg
+source venv_eeg/bin/activate  # Or venv_eeg\Scripts\activate on Windows
 ```
-python run_all.py
+- **2. Install Python dependencies:** 
 ```
-Add optional arguments as described in the Usage section.
-- **Download the dataset** _(if not already present)_  
+pip install mne numpy pandas scipy scikit-learn pingouin matplotlib rpy2 tqdm joblib datalad
+```
+
+- **3. Install R and the BayesFactor package:** Ensure R is installed on your system path, then run:
+```
+Rscript -e "install.packages('BayesFactor')"
+```
+- **4. Download the dataset:** 
 ```
 mkdir -p project/ds006761
-datalad install https://github.com/OpenNeuroDatasets/ds006761.git project/ds006761
+datalad install [https://github.com/OpenNeuroDatasets/ds006761.git](<https://github.com/OpenNeuroDatasets/ds006761.git>) project/ds006761
 cd project/ds006761
 datalad get .
 cd ../..
-```
 
-- **Run the pipeline**  
 ```
-python run_all.py  
-```
-_(Add optional arguments as described in the_ [_Usage_](#usage) _section.)_
-
-
 ## Usage
 
 The main entry point is `run_all.py`. It sequentially executes all preprocessing, decoding, Markov chain, and plotting steps.
