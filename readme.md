@@ -83,7 +83,8 @@ _All packages are listed in the Dockerfile and will be installed automatically w
 
 The full EEG dataset is **78 GB** and must be downloaded from OpenNeuro.
 
-**DOI:** [10.18112/openneuro.ds006761.v1.0.0](#https://openneuro.org/datasets/ds006761)
+**DOI:** 
+- [10.18112/openneuro.ds006761.v1.0.0](<https://openneuro.org/datasets/ds006761>)
 
 If you use the Docker method, the dataset will be downloaded automatically via datalad.
 
