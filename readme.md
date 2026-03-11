@@ -119,11 +119,11 @@ pip install mne numpy pandas scipy scikit-learn pingouin matplotlib rpy2 tqdm jo
 ```
 
 - **3. Install R and the BayesFactor package:** Ensure R is installed on your system path, then run:
-```
+```r
 Rscript -e "install.packages('BayesFactor')"
 ```
 - **4. Download the dataset:** 
-```
+```t
 mkdir -p project/ds006761
 datalad install https://github.com/OpenNeuroDatasets/ds006761.git project/ds006761
 cd project/ds006761
@@ -133,14 +133,14 @@ cd ../..
 ```
 ## Usage
 
-The main entry point is `run_all.py`. It sequentially executes all preprocessing, decoding, Markov chain, and plotting steps.
+The main entry point is `run_pipeline.py`. It sequentially executes all preprocessing, decoding, Markov chain, and plotting steps. Ensure your virtual environment is active before running.
 
 ### Command‑Line Arguments
 
 | Argument            | Description                                                      | Default                    |
 |---------------------|------------------------------------------------------------------|----------------------------|
-| `--test_pairs N`    | Process only the first `N` pairs (for quick testing)            | `None` (all pairs)         |
-| `--classifiers LIST`| Space‑separated list of classifiers to run                       | `svm lda logistic ridge`   |
+| `--test_pairs`      | Process only the first `N` pairs (for quick testing)             | `None` (all pairs)         |
+| `--classifiers`     | Space‑separated list of classifiers to run                       | `svm lda logistic ridge`   |
 | `--skip_searchlight`| Skip the computationally expensive searchlight analysis          | `False`                    |
 
 **Available classifiers:** svm, lda, logistic, ridge
@@ -151,7 +151,7 @@ The main entry point is `run_all.py`. It sequentially executes all preprocessing
 ```
 python run_all.py  
 ```
-**Quick test** _(only 4 pairs, only SVM and LDA, skip searchlight):_
+**Quick test** _(only 4 pairs, only SVM and LDA, skip searchlight computation):_
 ```
 python run_all.py --test_pairs 4 --classifiers svm lda --skip_searchlight  
 ```
@@ -161,49 +161,37 @@ python run_all.py --classifiers logistic
 ```
 ### Performance Optimization
 
-The searchlight decoding step (step2a_decoding.py) can be computationally heavy because it evaluates every channel‑time pair. To speed it up, the script uses parallel processing via joblib. You can control the number of parallel jobs by setting the variable N_JOBS_SEARCHLIGHT at the top of the file:
-```t
-N_JOBS_SEARCHLIGHT = -1 # Use all available CPU cores  
-\# Set to 1 to disable parallelism (useful for debugging)  
-\# Set to e.g., 4 to use exactly 4 cores  
-```
-- Using -1 will utilize all CPU cores, dramatically reducing runtime on multi‑core machines.
-- If you run out of memory, reduce the number of jobs (e.g., to 2 or 4).
-- The default value is -1 to maximize speed.
-- For even faster testing, use the --skip_searchlight flag to bypass this step entirely.
+The searchlight decoding step (`step2a_decoding.py`) evaluates every channel-time pair and is computationally heavy.
+
+- **Parallel Processing**: By default, the script uses all available CPU cores via `joblib` (`N_JOBS_SEARCHLIGHT = -1` in `config.py`).
+- **Memory Limits**: If you run out of RAM, edit `config.py` and reduce `N_JOBS_SEARCHLIGHT` (e.g., to `4` or `2`).
+- **Bypass**: For fast testing, always use the `--skip_searchlight` flag.
 
 ## Outputs
 
-All generated files are stored in:
+All generated files are stored in structured directories:
 
-`project/ds006761/derivatives/` – decoding results (`.pkl` files)
+- `project/ds006761/derivatives/`:
 
-`results/plots/` – figures (`Figure1.png`, `Figure2_*.png`, `Figure3_*.png`)
+  - Epoched EEG data (`-epo.fif`)
 
-Refer to the original README for detailed descriptions of each output file.
+  - Decoding results (`.pkl` files for each subject and classifier)
 
-### Decoding Results (per classifier)
+  - Markov chain predictions (`markov_chain_pred.npy`)
 
-For each subject and classifier, a pickle file named pair-XX_player-Y_task-RPS_decoding_&lt;clf&gt;.pkl contains:
+  - Debugging plots (`debug_decoding_<clf>.png`)
 
-- 'decoding': list of 4 arrays (20 time bins) - time‑resolved accuracy for each condition.
-- 'searchlight': list of 4 arrays (64 channels × 20 time bins) - searchlight accuracy maps.
-- 'ch_names': list of channel names.
-- 'classifier': classifier name.
+- `results/plots/`:
 
-### Markov Chain Results
+  - `Figure1.png` (behavioural results)
 
-- markov_chain_pred.npy - contains prediction accuracy for window sizes 5-100.
+  - `Figure2_<clf>.png` (overall decoding accuracy over time & topoplots)
 
-### Figures
-
-- Figure1.png - behavioural results (outcome frequencies, response distribution, switch rates, Markov chain predictability).
-- Figure2_&lt;clf&gt;.png - decoding accuracy over time (overall) with Bayes factors and topoplots (if searchlight was run).
-- Figure3_&lt;clf&gt;.png - winners vs. losers decoding accuracy with Bayes factors.
+  - `Figure3_<clf>.png` (winners vs. losers decoding accuracy)
 
 ### Console Output
 
-- bayes_output.py prints a table of peak accuracies and Bayes factors for winners and losers, formatted for easy inclusion in a report.
+- `bayes_output.py` runs automatically at the end of the pipeline, printing a nicely formatted table of peak accuracies and Bayes factors (Winners vs. Losers) directly to the console for easy inclusion in reports.
 
 ## Detailed File Descriptions
 
@@ -243,7 +231,7 @@ For each subject and classifier, a pickle file named pair-XX_player-Y_task-RPS_d
 - **Figure 2:** Decoding accuracy over time (overall) with Bayes factor dots and topographical maps (if searchlight data exists).
 - **Figure 3:** Winners vs. losers decoding accuracy, with three rows of Bayes factors (winners, losers, difference).
 - Bayes factors are computed using R's BayesFactor package (falls back to pingouin if R is unavailable).
-- Topoplots use channel coordinates from biosemi64.mat and a custom hot colormap. 
+- Topoplots use channel coordinates from `biosemi64.mat` and a custom hot colormap. 
 
 ### debug_decoding.py
 
@@ -253,7 +241,7 @@ For each subject and classifier, a pickle file named pair-XX_player-Y_task-RPS_d
 ### bayes_output.py
 
 - Specifically extracts winners' and losers' data, computes peak accuracy and maximum Bayes factor for each phase (decision, response, feedback), and prints a nicely formatted table.
-- Uses R's ttestBF with directional null interval (0.5, Inf) to get evidence for above‑chance decoding.
+- Uses R's `ttestBF` with directional null interval (0.5, Inf) to get evidence for above‑chance decoding.
 
 ### config.py
 
@@ -265,24 +253,19 @@ Central configuration file that holds all shared constants and settings used by 
 - Controls which classifiers run searchlight (`SEARCHLIGHT_CLASSIFIERS`) and the default list of classifiers (`DEFAULT_CLASSIFIERS`).  
 - Includes a helper function `get_pos_dict()` that loads electrode coordinates from `biosemi64.mat` (used for neighbour lists in searchlight and for topoplots).
 
-### run_all.py
-
-- Master script that calls all the above in order.
-- Parses command‑line arguments and passes them to each step.
-
 ## Reproducibility Notes
 
-- **Random seeds** are set in `step2a_decoding.py` (using pair and player IDs) to ensure consistent pseudo‑trial creation and cross‑validation splits.
-- **Python version** is pinned to 3.11.9 – the setup script will attempt to install it if not present.
-- **R and BayesFactor** are installed automatically by the script, guaranteeing a consistent environment.
-For further details, refer to the original documentation or contact the authors.
+- **Random seeds** are strictly set in `step2a_decoding.py` using subject and pair IDs to ensure pseudo-trial generation and K-Fold splits are perfectly reproducible.
+
+- **Environment Isolation:** R packages and Python requirements are pinned to ensure the Bayes calculations do not drift with external package updates.
 
 ## Troubleshooting
 
-- **`setup_pipeline.py` fails on Windows:** Ensure you have administrative privileges – the script may need to install Git, R, or Python via Chocolatey or winget. If automatic installation fails, install the missing components manually and rerun the script.
-- **R or BayesFactor not found:** After installation, make sure Rscript is in your system PATH. On Windows you may need to restart your terminal.
-- **Memory errors during searchlight:** Use `--skip_searchlight` for testing, or reduce the number of parallel jobs in `step2a_decoding.py` (change `N_JOBS_SEARCHLIGHT`).
-- **Dataset download is slow or interrupted:** You can download the dataset manually using DataLad or directly from OpenNeuro, then place it in `project/ds006761/` before running `setup_pipeline.py`.
+- **`setup_pipeline.py` fails on Windows:** Ensure you are running your terminal with Administrative privileges, as the script may need to install Git or Python via Windows package managers.
+- **"R/BayesFactor not available" Warning:** If R installation failed or isn't on your PATH, the pipeline will seamlessly fall back to `pingouin` for approximated Bayes Factors. Ensure `Rscript` is accessible in your terminal.
+- **Memory errors during searchlight:** Use `--skip_searchlight` or manually lower `N_JOBS_SEARCHLIGHT` inside `config.py` if parallel cross-validation exhausts your system memory.
+- **Dataset download interrupted:** DataLad depends on Git-Annex. If the download interrupts, you can safely CD into `project/ds006761` and run `datalad get .` again to resume.
+
 ## References
 
 - **Original dataset:** OpenNeuro [ds006761](https://openneuro.org/datasets/ds006761)
@@ -290,4 +273,4 @@ For further details, refer to the original documentation or contact the authors.
 - **BayesFactor R package:** <https://cran.r-project.org/package=BayesFactor>
 - **MNE‑Python:** <https://mne.tools/>
 
-For any questions, please contact [Shriram](<mailto:st194304@stud.uni-stuttgart.de>), [Abijith](<mailto:st194438@stud.uni-stuttgart.de>),  [Tejesh](<mailto:st194770@stud.uni-stuttgart.de>).
+For any questions, please contact [Shriram](<mailto:st194304@stud.uni-stuttgart.de>), [Abijith](<mailto:st194438@stud.uni-stuttgart.de>), [Tejesh](<mailto:st194770@stud.uni-stuttgart.de>).
