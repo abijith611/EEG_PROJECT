@@ -15,9 +15,8 @@ import matplotlib.colors as mcolors
 import mne
 import warnings
 import glob
+from config import PATH_TO_DATA, PLOT_DIR, PAIR_IDS, DERIV_DIR, SEARCHLIGHT_CLASSIFIERS, NUM_TESTS, NUM_TIME_BINS, NUM_CHAN
 
-
-SEARCHLIGHT_CLASSIFIERS = {'svm', 'lda'}   # only these will run searchlight
 R_AVAILABLE = False
 try:
     import rpy2.robjects as robjects
@@ -34,14 +33,7 @@ except Exception as e:
     print(f"R/BayesFactor not available ({e}). Using pingouin approximation.")
     import pingouin as pg
 
-path_to_data = 'project/ds006761'
-root_dir = 'EEG-PROJECT'
-plot_dir = os.path.join(root_dir, 'results', 'plots')
-os.makedirs(plot_dir, exist_ok=True)
-
-pair_ids = list(range(1, 10)) + list(range(11, 23)) + list(range(25, 35))
-num_tests = 4
-num_time_bins = 20
+os.makedirs(PLOT_DIR, exist_ok=True)
 
 # Custom hot colormap to match MATLAB (removes the glaring white tip)
 cmap_hot = plt.get_cmap('hot')
@@ -81,15 +73,15 @@ def calc_bayes_factor_ind(data_win, data_los, rscale="medium", null_interval="c(
         return pg.bayesfactor_ttest(t_stat, nx=len(data_win), ny=len(data_los), r=rscale)
 
 def plot_decoding(max_pairs=None, classifier='svm'):
-    pairs_to_run = pair_ids[:max_pairs] if max_pairs is not None else pair_ids
+    pairs_to_run = PAIR_IDS[:max_pairs] if max_pairs is not None else PAIR_IDS
     num_pairs_run = len(pairs_to_run)
     
-    all_decoding = np.full((num_pairs_run * 2, num_tests, num_time_bins), np.nan)
-    searchlight_all = np.full((num_pairs_run * 2, num_tests, 64, num_time_bins), np.nan)
+    all_decoding = np.full((num_pairs_run * 2, NUM_TESTS, NUM_TIME_BINS), np.nan)
+    searchlight_all = np.full((num_pairs_run * 2, NUM_TESTS, NUM_CHAN, NUM_TIME_BINS), np.nan)
     winners_idx, losers_idx = [], []
     
     for p_idx, pair in enumerate(pairs_to_run):
-        events_file = os.path.join(path_to_data, f'sub-{pair:02d}', 'eeg', f'sub-{pair:02d}_task-RPS_events.tsv')
+        events_file = os.path.join(PATH_TO_DATA, f'sub-{pair:02d}', 'eeg', f'sub-{pair:02d}_task-RPS_events.tsv')
         if os.path.exists(events_file):
             events = pd.read_csv(events_file, sep='\t')
             w1, w2 = sum(events['outcome'] == 2), sum(events['outcome'] == 3)
@@ -101,12 +93,12 @@ def plot_decoding(max_pairs=None, classifier='svm'):
         
         for ppt in [1, 2]:
             idx = p_idx * 2 + (ppt - 1)
-            file_path = os.path.join(path_to_data, 'derivatives', f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding_{classifier}.pkl')
+            file_path = os.path.join(DERIV_DIR, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding_{classifier}.pkl')
             if not os.path.exists(file_path):
                 print(f"Warning: {file_path} not found")
                 continue
             with open(file_path, 'rb') as f: res = pickle.load(f)
-            for t_idx in range(num_tests):
+            for t_idx in range(NUM_TESTS):
                 all_decoding[idx, t_idx, :] = res['decoding'][t_idx]
                 searchlight_all[idx, t_idx, :, :] = res['searchlight'][t_idx]
 
@@ -114,7 +106,7 @@ def plot_decoding(max_pairs=None, classifier='svm'):
     first_file = None
     for p_idx, pair in enumerate(pairs_to_run):
         for ppt in [1,2]:
-            test_path = os.path.join(path_to_data, 'derivatives', f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding_{classifier}.pkl')
+            test_path = os.path.join(DERIV_DIR, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding_{classifier}.pkl')
             if os.path.exists(test_path):
                 first_file = test_path
                 break
@@ -142,9 +134,9 @@ def plot_decoding(max_pairs=None, classifier='svm'):
     gs2 = gridspec.GridSpec(2, 2, figure=fig2, hspace=0.3, wspace=0.15)
     titles = ['A) Own response', "B) Opponent's response", 'C) Own previous response', "D) Opponent's previous response"]
     
-    x_axis_bins = np.arange(1, 21) 
+    x_axis_bins = np.arange(1, NUM_TIME_BINS + 1) 
     
-    for t in range(num_tests):
+    for t in range(NUM_TESTS):
         row, col = t // 2, t % 2
         
         # If no searchlight, use only 2 rows (main + BF), skip topo row
@@ -189,8 +181,8 @@ def plot_decoding(max_pairs=None, classifier='svm'):
         ax_main.set_xticks([0.5, 4.5, 8.5, 12.5, 16.5, 20.5])
         ax_main.set_xticklabels([])
         
-        bfs = np.ones(num_time_bins)
-        for w in range(num_time_bins):
+        bfs = np.ones(NUM_TIME_BINS)
+        for w in range(NUM_TIME_BINS):
             slice_w = data_t[:, w][~np.isnan(data_t[:, w])]
             if len(slice_w) > 2:
                 bfs[w] = calc_bayes_factor(slice_w)
@@ -247,7 +239,7 @@ def plot_decoding(max_pairs=None, classifier='svm'):
             if 'ax_topo_cb' in locals():
                 ax_topo_cb.set_visible(False)
 
-    plt.savefig(os.path.join(plot_dir, f'Figure2_{classifier}.png'), dpi=300, bbox_inches='tight', pad_inches=0.2, facecolor='white')
+    plt.savefig(os.path.join(PLOT_DIR, f'Figure2_{classifier}.png'), dpi=300, bbox_inches='tight', pad_inches=0.2, facecolor='white')
     print(f"Figure2_{classifier}.png saved.")
 
     # ---------------------------------------------------------
@@ -260,7 +252,7 @@ def plot_decoding(max_pairs=None, classifier='svm'):
         color_win = plt.get_cmap('winter')(0.2) 
         color_los = plt.get_cmap('winter')(0.7) 
 
-        for t in range(num_tests):
+        for t in range(NUM_TESTS):
             row, col = t // 2, t % 2
             
             # Same height ratio adjustment as Figure 2
@@ -307,8 +299,8 @@ def plot_decoding(max_pairs=None, classifier='svm'):
             ax_main.set_xticks([0.5, 4.5, 8.5, 12.5, 16.5, 20.5])
             ax_main.set_xticklabels([])
             
-            bfs_win, bfs_los, bfs_diff = np.ones(num_time_bins), np.ones(num_time_bins), np.ones(num_time_bins)
-            for w in range(num_time_bins):
+            bfs_win, bfs_los, bfs_diff = np.ones(NUM_TIME_BINS), np.ones(NUM_TIME_BINS), np.ones(NUM_TIME_BINS)
+            for w in range(NUM_TIME_BINS):
                 sw = data_win[:, w][~np.isnan(data_win[:, w])] / 100
                 sl = data_los[:, w][~np.isnan(data_los[:, w])] / 100
                 
@@ -341,7 +333,7 @@ def plot_decoding(max_pairs=None, classifier='svm'):
             ax_bf.set_xticklabels(['0', '1', '2', '3', '4', '5'])
             ax_bf.set_xlabel('Time (s)', fontsize=12)
 
-        plt.savefig(os.path.join(plot_dir, f'Figure3_{classifier}.png'), dpi=300, bbox_inches='tight', pad_inches=0.2, facecolor='white')
+        plt.savefig(os.path.join(PLOT_DIR, f'Figure3_{classifier}.png'), dpi=300, bbox_inches='tight', pad_inches=0.2, facecolor='white')
         print(f"Figure3_{classifier}.png saved.")
 
 if __name__ == '__main__':
@@ -355,7 +347,7 @@ if __name__ == '__main__':
 
     # Find all available classifiers from existing decoding files
     if args.classifier is None:
-        pattern = os.path.join(path_to_data, 'derivatives', 'pair-*_player-*_task-RPS_decoding_*.pkl')
+        pattern = os.path.join(PATH_TO_DATA, 'derivatives', 'pair-*_player-*_task-RPS_decoding_*.pkl')
         files = glob.glob(pattern)
         classifiers = set()
         for f in files:
