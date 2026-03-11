@@ -128,11 +128,11 @@ install.packages("BayesFactor", repos = "https://cloud.r-project.org/")
 
 - **Download the dataset** _(if not already present)_  
 ```
-mkdir -p project/ds006761  
-datalad install \[<https://github.com/OpenNeuroDatasets/ds006761.git\>](<https://github.com/OpenNeuroDatasets/ds006761.git>) project/ds006761  
-cd project/ds006761  
-datalad get .  
-cd ../..  
+mkdir -p project/ds006761
+datalad install https://github.com/OpenNeuroDatasets/ds006761.git project/ds006761
+cd project/ds006761
+datalad get .
+cd ../..
 ```
 
 - **Run the pipeline**  
@@ -197,10 +197,11 @@ python run_all.py --classifiers logistic
 ### Performance Optimization
 
 The searchlight decoding step (step2a_decoding.py) can be computationally heavy because it evaluates every channel‑time pair. To speed it up, the script uses parallel processing via joblib. You can control the number of parallel jobs by setting the variable N_JOBS_SEARCHLIGHT at the top of the file:
-
+```t
 N_JOBS_SEARCHLIGHT = -1 # Use all available CPU cores  
 \# Set to 1 to disable parallelism (useful for debugging)  
 \# Set to e.g., 4 to use exactly 4 cores  
+```
 
 - Using -1 will utilize all CPU cores, dramatically reducing runtime on multi‑core machines.
 - If you run out of memory, reduce the number of jobs (e.g., to 2 or 4).
