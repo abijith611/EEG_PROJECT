@@ -195,7 +195,7 @@ All generated files are stored in structured directories:
 
 ## Detailed File Descriptions
 
-### step1_preprocessing.py
+### `step1_preprocessing.py`
 
 - Reads raw .bdf files and event files.
 - Splits data by player, renames channels to standard 10‑20 labels.
@@ -203,7 +203,7 @@ All generated files are stored in structured directories:
 - Repairs bad channels using inverse‑distance weighting (threshold 5 cm) based on participants.tsv.
 - Downsamples to 256 Hz and saves as -epo.fif files.
 
-### step2a_decoding.py
+### `step2a_decoding.py`
 
 - Loads epoched data and bins it into 20 time windows (250 ms each).
 - Creates pseudo‑trials (averages of 4 trials) to increase SNR.
@@ -212,13 +212,13 @@ All generated files are stored in structured directories:
   - Runs searchlight decoding (only for SVM and LDA) using parallel processing.
 - Saves results in a pickle file named with the classifier suffix.
 
-### step2b_markovchain.py
+### `step2b_markovchain.py`
 
 - Constructs a first‑order Markov chain from the response sequences.
 - For window sizes from 5 to 100, computes the probability of the next move based on the previous move.
 - Stores prediction accuracy for each participant.
 
-### step3a_plot_Fig1.py
+### `step3a_plot_Fig1.py`
 
 - Generates Figure 1 from the paper:
   - Raincloud plots (half‑violin + boxplot + scatter) for outcome percentages, response frequencies, and game‑to‑game switch rates.
@@ -226,24 +226,24 @@ All generated files are stored in structured directories:
   - Pie charts showing the distribution of most‑played moves.
 - Uses custom raincloud implementation for precise control over appearance.
 
-### step3b_plot_Fig2_Fig3.py
+### `step3b_plot_Fig2_Fig3.py`
 
 - **Figure 2:** Decoding accuracy over time (overall) with Bayes factor dots and topographical maps (if searchlight data exists).
 - **Figure 3:** Winners vs. losers decoding accuracy, with three rows of Bayes factors (winners, losers, difference).
 - Bayes factors are computed using R's BayesFactor package (falls back to pingouin if R is unavailable).
 - Topoplots use channel coordinates from `biosemi64.mat` and a custom hot colormap. 
 
-### debug_decoding.py
+### `debug_decoding.py`
 
 - Quick diagnostic script that loads all decoding files for each classifier and prints mean accuracies per condition, plus winner/loser comparisons.
 - Also generates a simple plot for visual inspection.
 
-### bayes_output.py
+### `bayes_output.py`
 
 - Specifically extracts winners' and losers' data, computes peak accuracy and maximum Bayes factor for each phase (decision, response, feedback), and prints a nicely formatted table.
 - Uses R's `ttestBF` with directional null interval (0.5, Inf) to get evidence for above‑chance decoding.
 
-### config.py
+### `config.py`
 
 Central configuration file that holds all shared constants and settings used by the other scripts.  
 - Defines file paths (`PATH_TO_DATA`, `DERIV_DIR`, `PLOT_DIR`).  
