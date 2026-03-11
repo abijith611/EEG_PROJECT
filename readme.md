@@ -83,7 +83,7 @@ _All packages are listed in the Dockerfile and will be installed automatically w
 
 The full EEG dataset is **78 GB** and must be downloaded from OpenNeuro.
 
-**DOI:** 10.18112/openneuro.ds006761.v1.0.0
+**DOI:** [10.18112/openneuro.ds006761.v1.0.0](#https://openneuro.org/datasets/ds006761)
 
 If you use the Docker method, the dataset will be downloaded automatically via datalad.
 
@@ -100,32 +100,43 @@ datalad get .
 ### Option 1: Manual Installation
 
 - **Clone the repository**  
+```
     git clone &lt;your-repo-url&gt;  
     cd &lt;repo-folder&gt;  
+    ```
 
 - **Create and activate a Python virtual environment** _(recommended)_  
+```
     python3.11 -m venv venv  
     source venv/bin/activate # On Windows: venv\\Scripts\\activate  
+    ```
 
 - **Install Python packages**  
+```
     pip install mne numpy pandas scipy scikit-learn pingouin matplotlib rpy2 tqdm joblib datalad  
+    ```
 
 - **Install R and BayesFactor**
   - Install R from <https://www.r-project.org/>
   - In R, run:  
+
   ```R
   install.packages("BayesFactor", repos = "https://cloud.r-project.org/")
   ```
 
 - **Download the dataset** _(if not already present)_  
+```
     mkdir -p project/ds006761  
     datalad install \[<https://github.com/OpenNeuroDatasets/ds006761.git\>](<https://github.com/OpenNeuroDatasets/ds006761.git>) project/ds006761  
     cd project/ds006761  
     datalad get .  
     cd ../..  
+    ```
 
 - **Run the pipeline**  
+```
     python run_all.py  
+    ```
     <br/>_(Add optional arguments as described in the_ [_Usage_](#usage) _section.)_
 
 ### Option 2: Docker (Recommended)
@@ -134,15 +145,22 @@ This method guarantees an identical environment and handles the dataset download
 
 - **Install Docker and Docker Compose** (Docker Desktop includes both).
 - **Clone the repository**  
+```
     git clone &lt;your-repo-url&gt;  
     cd &lt;repo-folder&gt;  
+    ```
 
 - **Run the pipeline**  
+```
     docker-compose up  
+    ```
   - **First run:** The Docker image will be built (Python 3.11.9, R, BayesFactor, all Python packages). Then the dataset will be downloaded via datalad into project/ds006761/ (on your host). This may take a while (78 GB). Subsequent runs will skip the download.
   - After the download, the full pipeline executes with default settings (all pairs, all classifiers).
 
-To run a smaller test (e.g., first 4 pairs with only SVM and LDA), use:docker-compose run eeg-pipeline python run_all.py --test_pairs 4 --classifiers svm lda  
+To run a smaller test (e.g., first 4 pairs with only SVM and LDA), use:
+```
+docker-compose run eeg-pipeline python run_all.py --test_pairs 4 --classifiers svm lda
+```  
 
 Results are saved in project/ds006761/derivatives/ and results/plots/ on your host machine.
 
@@ -166,17 +184,17 @@ The main entry point is run_all.py. It sequentially executes all preprocessing, 
 ### Examples
 
 **Full analysis** _(may take several hours / days depending on hardware):_
-
+```
 python run_all.py  
-
+```
 **Quick test** _(only 4 pairs, only SVM and LDA, skip searchlight):_
-
+```
 python run_all.py --test_pairs 4 --classifiers svm lda --skip_searchlight  
-
+```
 **Run only a specific classifier** _(e.g., logistic regression):_
-
+```
 python run_all.py --classifiers logistic  
-
+```
 ### Performance Optimization
 
 The searchlight decoding step (step2a_decoding.py) can be computationally heavy because it evaluates every channel‑time pair. To speed it up, the script uses parallel processing via joblib. You can control the number of parallel jobs by setting the variable N_JOBS_SEARCHLIGHT at the top of the file:
