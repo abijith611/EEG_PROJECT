@@ -11,7 +11,7 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
   - [Automated Setup (Recommended)](#automated-setup-recommended)
   - [Manual Setup](#manual-setup)
 - [Usage](#usage)
-  - [Command‑Line Arguments](#command-line-arguments)
+  - [Command Line Arguments](#command-line-arguments)
   - [Examples](#examples)
   - [Performance Optimization](#performance-optimization)
 - [Outputs](#outputs)
@@ -135,7 +135,7 @@ cd ../..
 
 The main entry point is `run_pipeline.py`. It sequentially executes all preprocessing, decoding, Markov chain, and plotting steps. Ensure your virtual environment is active before running.
 
-### Command‑Line Arguments
+### Command Line Arguments
 
 | Argument            | Description                                                      | Default                    |
 |---------------------|------------------------------------------------------------------|----------------------------|
