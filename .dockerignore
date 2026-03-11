@@ -16,10 +16,6 @@ __pycache__/
 
 # Logs and temporary files
 *.log
-*.pkl
-*.npy
-*.fif
-*.mat
 
 # Results (will be saved in mounted volume)
 results/

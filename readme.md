@@ -162,7 +162,7 @@ docker-compose up
 
 To run a smaller test (e.g., first 4 pairs with only SVM and LDA), use:
 ```
-docker-compose run eeg-pipeline python run_all.py --test_pairs 4 --classifiers svm lda
+docker-compose run eeg-pipeline --test_pairs 4 --classifiers svm lda
 ```  
 Results are saved in project/ds006761/derivatives/ and results/plots/ on your host machine.
 

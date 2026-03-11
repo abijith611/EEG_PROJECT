@@ -1,36 +1,19 @@
-# Use the exact Python version you used for development
-FROM python:3.11.9-slim
+FROM continuumio/miniconda3:latest
 
-# Install system dependencies, including those for compiling R packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    r-base \
-    r-base-dev \
-    git-annex \
-    wget \
-    curl \
-    git \
-    bash \
-    libssl-dev \
-    libcurl4-openssl-dev \
-    libxml2-dev \
-    libnlopt-dev \          
-    libgsl-dev \             
-    libfftw3-dev \           
-    cmake \                  
-    gfortran \               
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install BayesFactor and its dependencies
-# Use multiple cores to speed up compilation, and install nloptr first to catch errors early
-RUN Rscript -e "install.packages('nloptr', repos='https://cloud.r-project.org/', Ncpus=4)" \
-    && Rscript -e "install.packages('BayesFactor', repos='https://cloud.r-project.org/', dependencies=TRUE, Ncpus=4)" \
-    && Rscript -e "library(BayesFactor)"
-
-# Set working directory
 WORKDIR /app
 
-# Install Python packages (list from your readme)
+# Install system build tools (required for compiling rpy2)
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Create Conda environment with Python 3.11.9, R, BayesFactor, and rpy2
+RUN conda create -n eeg python=3.11.9 r-base r-bayesfactor rpy2 -c conda-forge -y && \
+    conda clean -afy
+
+# Activate the environment by adding its bin directory to PATH
+ENV PATH /opt/conda/envs/eeg/bin:$PATH
+
+# Install remaining Python packages via pip (rpy2 is removed from here)
 RUN pip install --no-cache-dir \
     mne \
     numpy \
@@ -41,16 +24,14 @@ RUN pip install --no-cache-dir \
     matplotlib \
     seaborn \
     ptitprince \
-    rpy2 \
     tqdm \
     joblib \
     datalad
 
-# Copy the entire project into the container
+# Copy project files
 COPY . /app
 
-# Make the download script executable
+# Make entrypoint executable
 RUN chmod +x /app/download_data.sh
 
-# Set the entrypoint to run the download script and then the pipeline
 ENTRYPOINT ["/app/download_data.sh"]
