@@ -125,7 +125,7 @@ Rscript -e "install.packages('BayesFactor')"
 - **4. Download the dataset:** 
 ```
 mkdir -p project/ds006761
-datalad install [https://github.com/OpenNeuroDatasets/ds006761.git](<https://github.com/OpenNeuroDatasets/ds006761.git>) project/ds006761
+datalad install https://github.com/OpenNeuroDatasets/ds006761.git project/ds006761
 cd project/ds006761
 datalad get .
 cd ../..
