@@ -24,20 +24,20 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 
 ```t
 .  
-├── bayes_output.py          # Computes directional Bayes Factors for winners vs. losers  
-├── biosemi64.mat            # Channel coordinates (used for topoplots)  
-├── config.py                # Central configuration file (paths, constants, classifier lists) 
-├── debug_decoding.py        # Diagnostic script that prints decoding stats & plots averages
-├── project/ds006761/        # The dataset directory (created during setup)
-├── README.md                # This documentation file 
-├── setup_pipeline.py        # Automated cross-platform setup script  
-├── run_pipeline.py          # Master script that executes the entire pipeline  
-├── step1_preprocessing.py   # Raw data import, bad channel repair, epoching, downsampling  
-├── step2a_decoding.py       # Time-resolved and searchlight decoding (multiple classifiers)  
-├── step2b_markovchain.py    # Markov chain analysis of response predictability  
-├── step3a_plot_Fig1.py      # Generates Figure 1 (behavioural results)  
-├── step3b_plot_Fig2_Fig3.py # Generates Figures 2 & 3 (decoding accuracy and Bayes factors)  
-└── EEG-PROJECT/results/plots/           # Output directory for figures (created automatically)  
+├── bayes_output.py                     # Computes directional Bayes Factors for winners vs. losers  
+├── biosemi64.mat                       # Channel coordinates (used for topoplots)  
+├── config.py                           # Central configuration file (paths, constants, classifier lists) 
+├── debug_decoding.py                   # Diagnostic script that prints decoding stats & plots averages
+├── project/ds006761/                   # The dataset directory (created during setup)
+├── README.md                           # This documentation file 
+├── setup_pipeline.py                   # Automated cross-platform setup script  
+├── run_pipeline.py                     # Master script that executes the entire pipeline  
+├── step1_preprocessing.py              # Raw data import, bad channel repair, epoching, downsampling  
+├── step2a_decoding.py                  # Time-resolved and searchlight decoding (multiple classifiers)  
+├── step2b_markovchain.py               # Markov chain analysis of response predictability  
+├── step3a_plot_Fig1.py                 # Generates Figure 1 (behavioural results)  
+├── step3b_plot_Fig2_Fig3.py            # Generates Figures 2 & 3 (decoding accuracy and Bayes factors)  
+└── EEG-PROJECT/results/plots/          # Output directory for figures (created automatically)  
 
 ```
 
