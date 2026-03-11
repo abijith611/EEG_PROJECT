@@ -1,7 +1,7 @@
 # Use the exact Python version you used for development
 FROM python:3.11.9-slim
 
-# Install system dependencies: R, git-annex (for datalad), and utilities
+# Install system dependencies, including those for compiling R packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     r-base \
     r-base-dev \
@@ -9,11 +9,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     curl \
     git \
+    bash \
+    libssl-dev \
+    libcurl4-openssl-dev \
+    libxml2-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install BayesFactor R package
-RUN Rscript -e "install.packages('BayesFactor', repos='https://cloud.r-project.org/')"
+# Install BayesFactor with verbose output and specify a known library path
+RUN Rscript -e "install.packages('BayesFactor', repos='https://cloud.r-project.org/', dependencies=TRUE, verbose=TRUE)" \
+&& Rscript -e "library(BayesFactor)"
 
 # Set working directory
 WORKDIR /app
