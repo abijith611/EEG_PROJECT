@@ -30,7 +30,7 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 ├── bayes_output.py # Computes directional Bayes Factors for winners vs. losers  
 ├── biosemi64.mat # Channel coordinates (used for topoplots)  
 ├── debug_decoding.py # Diagnostic script that prints decoding statistics  
-├── ds006761-1.0.0.sh # (Not used) Expired download script from OpenNeuro  
+├── project/ds006761 # The dataset directory  
 ├── Dockerfile # Docker image definition (Python 3.11.9 + R + BayesFactor)  
 ├── docker-compose.yml # Docker Compose configuration (mounts data volumes)  
 ├── download_data.sh # Entrypoint script that downloads dataset via DataLad  
@@ -41,7 +41,7 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 ├── step2b_markovchain.py # Markov chain analysis of response predictability  
 ├── step3a_plot_Fig1.py # Generates Figure 1 (behavioural results)  
 ├── step3b_plot_Fig2_Fig3.py # Generates Figures 2 & 3 (decoding accuracy and Bayes factors)  
-└── results/plots/ # Output directory for figures (created automatically)  
+└── EEG-PROJECT/results/plots/ # Output directory for figures (created automatically)  
 
 ```
 
@@ -163,7 +163,6 @@ To run a smaller test (e.g., first 4 pairs with only SVM and LDA), use:
 ```
 docker-compose run eeg-pipeline python run_all.py --test_pairs 4 --classifiers svm lda
 ```  
-
 Results are saved in project/ds006761/derivatives/ and results/plots/ on your host machine.
 
 ## Usage
@@ -202,7 +201,6 @@ N_JOBS_SEARCHLIGHT = -1 # Use all available CPU cores
 \# Set to 1 to disable parallelism (useful for debugging)  
 \# Set to e.g., 4 to use exactly 4 cores  
 ```
-
 - Using -1 will utilize all CPU cores, dramatically reducing runtime on multi‑core machines.
 - If you run out of memory, reduce the number of jobs (e.g., to 2 or 4).
 - The default value is -1 to maximize speed.
@@ -312,6 +310,7 @@ For each subject and classifier, a pickle file named pair-XX_player-Y_task-RPS_d
 ## References
 
 - **Original dataset:** OpenNeuro [ds006761](https://openneuro.org/datasets/ds006761)
+- **Journal Article:** <https://academic.oup.com/scan/article/20/1/nsaf101/8269262>
 - **BayesFactor R package:** <https://cran.r-project.org/package=BayesFactor>
 - **MNE‑Python:** <https://mne.tools/>
 
