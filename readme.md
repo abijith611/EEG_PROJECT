@@ -4,8 +4,6 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 
 ## Table of Contents
 
-## Table of Contents
-
 - [Repository Structure](#repository-structure)
 - [Requirements](#requirements)
   - [Software](#software)
@@ -77,7 +75,9 @@ _All packages are listed in the Dockerfile and will be installed automatically w
 
 - **BayesFactor** - install inside R with:
 
-install.packages("BayesFactor", repos="\[<https://cloud.r-project.org/\>](<https://cloud.r-project.org/>)")  
+  ```R
+  install.packages("BayesFactor", repos = "https://cloud.r-project.org/")
+  ```
 
 ## Dataset
 
