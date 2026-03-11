@@ -191,7 +191,7 @@ All generated files are stored in structured directories:
 
 ### Console Output
 
-- `bayes_output.py` runs automatically at the end of the pipeline, printing a nicely formatted table of peak accuracies and Bayes factors (Winners vs. Losers) directly to the console for easy inclusion in reports.
+- `bayes_output.py` runs automatically at the end of the pipeline, printing a formatted table of peak accuracies and Bayes factors (Winners vs. Losers) directly to the console.
 
 ## Detailed File Descriptions
 
