@@ -29,6 +29,7 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 .  
 ├── bayes_output.py # Computes directional Bayes Factors for winners vs. losers  
 ├── biosemi64.mat # Channel coordinates (used for topoplots)  
+├── config.py # Central Configuration file (paths, constants, classifier lists) 
 ├── debug_decoding.py # Diagnostic script that prints decoding statistics  
 ├── project/ds006761 # The dataset directory  
 ├── Dockerfile # Docker image definition (Python 3.11.9 + R + BayesFactor via Conda)
@@ -289,6 +290,16 @@ For each subject and classifier, a pickle file named pair-XX_player-Y_task-RPS_d
 
 - Specifically extracts winners' and losers' data, computes peak accuracy and maximum Bayes factor for each phase (decision, response, feedback), and prints a nicely formatted table.
 - Uses R's ttestBF with directional null interval (0.5, Inf) to get evidence for above‑chance decoding.
+
+### config.py
+
+Central configuration file that holds all shared constants and settings used by the other scripts.  
+- Defines file paths (`PATH_TO_DATA`, `DERIV_DIR`, `PLOT_DIR`).  
+- Lists participant IDs to analyse (`PAIR_IDS`).  
+- Sets numerical parameters: number of trials (`NUM_TRIALS`), number of decoding targets (`NUM_TESTS`), number of time bins (`NUM_TIME_BINS`), sampling frequency (`SFREQ`), and number of EEG channels (`NUM_CHAN`).  
+- Provides the standard 10‑20 channel mapping (`MATLAB_LAYOUT_LABELS`) used for renaming.  
+- Controls which classifiers run searchlight (`SEARCHLIGHT_CLASSIFIERS`) and the default list of classifiers (`DEFAULT_CLASSIFIERS`).  
+- Includes a helper function `get_pos_dict()` that loads electrode coordinates from `biosemi64.mat` (used for neighbour lists in searchlight and for topoplots).
 
 ### run_all.py
 

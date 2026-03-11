@@ -7,24 +7,22 @@ Window sizes from 5 to 100.
 import os
 import numpy as np
 import pandas as pd
+from config import PATH_TO_DATA, DERIV_DIR, PAIR_IDS, NUM_TRIALS
 
-path_to_data = 'project/ds006761'
-pair_ids = list(range(1, 10)) + list(range(11, 23)) + list(range(25, 35))
-num_trials = 480
 num_windows = 100
 
 def run_markov(max_pairs=None):
-    pairs_to_run = pair_ids[:max_pairs] if max_pairs is not None else pair_ids
+    pairs_to_run = PAIR_IDS[:max_pairs] if max_pairs is not None else PAIR_IDS
     num_pairs_run = len(pairs_to_run)
     
     Mean_Accuracy = np.zeros((num_pairs_run, 2, num_windows + 1))
-    M_pred = np.zeros((num_pairs_run, 2, num_windows + 1, num_trials, 4))
+    M_pred = np.zeros((num_pairs_run, 2, num_windows + 1, NUM_TRIALS, 4))
     
     for p_idx, pair in enumerate(pairs_to_run):
         print(f'Loading pair {p_idx + 1} of {num_pairs_run} (ID: {pair})')
         sub_str = f'sub-{pair:02d}'
         
-        events_file = os.path.join(path_to_data, sub_str, 'eeg', f'{sub_str}_task-RPS_events.tsv')
+        events_file = os.path.join(PATH_TO_DATA, sub_str, 'eeg', f'{sub_str}_task-RPS_events.tsv')
         if not os.path.exists(events_file):
             continue
             
@@ -34,10 +32,10 @@ def run_markov(max_pairs=None):
             ppt_col = 'player1_resp' if ppt == 1 else 'player2_resp'
             resp = events[ppt_col].values
             
-            prob_data = np.full((num_trials, 13), np.nan)
+            prob_data = np.full((NUM_TRIALS, 13), np.nan)
             prob_data[0, :] = [1, 3, 1, 1, 1, 3, 1, 1, 1, 3, 1, 1, 1]
             
-            for i in range(1, num_trials):
+            for i in range(1, NUM_TRIALS):
                 prob_data[i, :] = prob_data[i-1, :]
                 prob_data[i, 0] = i + 1
                 
@@ -60,12 +58,12 @@ def run_markov(max_pairs=None):
                     elif r_curr == 2: prob_data[i, 11] += 1
                     else: prob_data[i, 12] += 1
                     
-            prob_res = np.full((num_trials, 4), np.nan)
+            prob_res = np.full((NUM_TRIALS, 4), np.nan)
             m_Prob = np.full((3, 3), 1/3)
-            inter_prob_data = np.full((num_trials, 13), np.nan)
+            inter_prob_data = np.full((NUM_TRIALS, 13), np.nan)
             
             for window_size in range(5, 101):
-                for i in range(2, num_trials):
+                for i in range(2, NUM_TRIALS):
                     if i < window_size:
                         inter_prob_data[i, :] = prob_data[i-1, :]
                     else:
@@ -109,7 +107,6 @@ def run_markov(max_pairs=None):
                     Mean_Accuracy[p_idx, ppt-1, window_size] = np.mean(data_mean)
                 M_pred[p_idx, ppt-1, window_size, :, :] = prob_res
                 
-    deriv_dir = os.path.join(path_to_data, 'derivatives')
-    os.makedirs(deriv_dir, exist_ok=True)
-    out_file = os.path.join(deriv_dir, 'markov_chain_pred.npy')
+    os.makedirs(DERIV_DIR, exist_ok=True)
+    out_file = os.path.join(DERIV_DIR, 'markov_chain_pred.npy')
     np.save(out_file, {'M_pred': M_pred, 'Mean_Accuracy': Mean_Accuracy})

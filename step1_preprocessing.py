@@ -12,10 +12,7 @@ import mne
 import pandas as pd
 import numpy as np
 from scipy.spatial.distance import cdist
-
-path_to_data = 'project/ds006761'
-pair_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-            21, 22, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34]
+from config import PATH_TO_DATA, DERIV_DIR, PAIR_IDS, MATLAB_LAYOUT_LABELS, SFREQ
 
 def repair_bads_inverse_distance(epochs, bad_chans, thresh=0.05):
     """
@@ -98,15 +95,14 @@ def repair_bads_inverse_distance(epochs, bad_chans, thresh=0.05):
     return epochs
 
 def run_preprocessing(max_pairs=None):
-    deriv_dir = os.path.join(path_to_data, 'derivatives')
-    os.makedirs(deriv_dir, exist_ok=True)
+    os.makedirs(DERIV_DIR, exist_ok=True)
 
-    participants = pd.read_csv(os.path.join(path_to_data, 'participants.tsv'), sep='\t')
-    pairs_to_run = pair_ids[:max_pairs] if max_pairs is not None else pair_ids
+    participants = pd.read_csv(os.path.join(PATH_TO_DATA, 'participants.tsv'), sep='\t')
+    pairs_to_run = PAIR_IDS[:max_pairs] if max_pairs is not None else PAIR_IDS
 
     for pair in pairs_to_run:
         sub_str = f'sub-{pair:02d}'
-        eeg_dir = os.path.join(path_to_data, sub_str, 'eeg')
+        eeg_dir = os.path.join(PATH_TO_DATA, sub_str, 'eeg')
 
         raw = mne.io.read_raw_bdf(os.path.join(eeg_dir, f'{sub_str}_task-RPS_eeg.bdf'),
                                   preload=True, verbose=False)
@@ -116,7 +112,7 @@ def run_preprocessing(max_pairs=None):
         montage = mne.channels.make_standard_montage('biosemi64')
 
         for ppt in [1, 2]:
-            out_file = os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS-epo.fif')
+            out_file = os.path.join(DERIV_DIR, f'pair-{pair:02d}_player-{ppt}_task-RPS-epo.fif')
             if os.path.exists(out_file):
                 print(f"Skipping pair {pair} player {ppt} – output already exists.")
                 continue
@@ -125,20 +121,9 @@ def run_preprocessing(max_pairs=None):
             ppt_chans = [ch for ch in raw.ch_names if (ch.startswith(prefix + 'A') or ch.startswith(prefix + 'B'))]
             raw_ppt = raw.copy().pick(ppt_chans)
 
-            # The exact label list extracted from the author's FieldTrip layout
-            matlab_layout_labels = [
-                'Fp1', 'AF7', 'AF3', 'F1', 'F3', 'F5', 'F7', 'FT7', 'FC5', 'FC3', 
-                'FC1', 'C1', 'C3', 'C5', 'T7', 'TP7', 'CP5', 'CP3', 'CP1', 'P1', 
-                'P3', 'P5', 'P7', 'P9', 'PO7', 'PO3', 'O1', 'Iz', 'Oz', 'POz', 
-                'Pz', 'CPz', 'Fpz', 'Fp2', 'AF8', 'AF4', 'AFz', 'Fz', 'F2', 'F4', 
-                'F6', 'F8', 'FT8', 'FC6', 'FC4', 'FC2', 'FCz', 'Cz', 'C2', 'C4', 
-                'C6', 'T8', 'TP8', 'CP6', 'CP4', 'CP2', 'P2', 'P4', 'P6', 'P8', 
-                'P10', 'PO8', 'PO4', 'O2'
-            ]
-
             # Force the MATLAB channel scrambling: map current hardware channels sequentially
             current_chans = raw_ppt.ch_names
-            forced_mapping = {current_chans[i]: matlab_layout_labels[i] for i in range(len(current_chans))}
+            forced_mapping = {current_chans[i]: MATLAB_LAYOUT_LABELS[i] for i in range(len(current_chans))}
             
             raw_ppt.rename_channels(forced_mapping)
             raw_ppt.set_montage(montage, on_missing='ignore')
@@ -164,7 +149,7 @@ def run_preprocessing(max_pairs=None):
                     epochs = repair_bads_inverse_distance(epochs, bad_list, thresh=0.05)
 
             # Downsample
-            epochs.resample(256.0)
+            epochs.resample(SFREQ)
 
             epochs.save(out_file, overwrite=True, verbose=False)
 

@@ -5,6 +5,7 @@ import pandas as pd
 import warnings
 import glob
 import pingouin as pg  # for fallback Bayes factor
+from config import PATH_TO_DATA, DERIV_DIR, PAIR_IDS
 
 # Attempt to import R bridge for exact Bayes Factors
 R_AVAILABLE = False
@@ -52,15 +53,12 @@ def calc_bf_1samp(data, mu=100/3):
     return bf10
 
 def extract_winner_loser_stats():
-    path_to_data = 'project/ds006761'
-    deriv_dir = os.path.join(path_to_data, 'derivatives')
-    pair_ids = list(range(1, 10)) + list(range(11, 23)) + list(range(25, 35))
     
     conditions = ['Own response', "Opponent's response", 
                   'Own previous response', "Opponent's previous response"]
     
     # Find all classifier suffixes
-    pattern = os.path.join(deriv_dir, 'pair-*_player-*_task-RPS_decoding_*.pkl')
+    pattern = os.path.join(DERIV_DIR, 'pair-*_player-*_task-RPS_decoding_*.pkl')
     files = glob.glob(pattern)
     clf_suffixes = set()
     for f in files:
@@ -88,8 +86,8 @@ def extract_winner_loser_stats():
         losers_idx = []
         
         # Load data and sort by Winner/Loser
-        for pair in pair_ids:
-            events_file = os.path.join(path_to_data, f'sub-{pair:02d}', 'eeg', f'sub-{pair:02d}_task-RPS_events.tsv')
+        for pair in PAIR_IDS:
+            events_file = os.path.join(PATH_TO_DATA, f'sub-{pair:02d}', 'eeg', f'sub-{pair:02d}_task-RPS_events.tsv')
             winner_ppt = None
             if os.path.exists(events_file):
                 events = pd.read_csv(events_file, sep='\t')
@@ -98,7 +96,7 @@ def extract_winner_loser_stats():
                 winner_ppt = 1 if w1 > w2 else 2 # Tie goes to player 2 as per plotting logic
 
             for ppt in [1, 2]:
-                fpath = os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding_{clf}.pkl')
+                fpath = os.path.join(DERIV_DIR, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding_{clf}.pkl')
                 if not os.path.exists(fpath): continue
                 with open(fpath, 'rb') as f:
                     data = pickle.load(f)

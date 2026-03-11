@@ -10,19 +10,14 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import glob
+from config import PATH_TO_DATA, DERIV_DIR, PAIR_IDS, NUM_TESTS, NUM_TIME_BINS
 
-path_to_data = 'project/ds006761'
-deriv_dir = os.path.join(path_to_data, 'derivatives')
-
-pair_ids = list(range(1, 10)) + list(range(11, 23)) + list(range(25, 35))
-num_tests = 4
-num_time_bins = 20
 conditions = ['Own response', "Opponent's response",
               'Own previous response', "Opponent's previous response"]
 
 def load_data_for_classifier(clf_suffix):
     """Load all decoding files for a given classifier suffix (e.g., 'svm', 'lda')."""
-    pattern = os.path.join(deriv_dir, f'pair-*_player-*_task-RPS_decoding_{clf_suffix}.pkl')
+    pattern = os.path.join(DERIV_DIR, f'pair-*_player-*_task-RPS_decoding_{clf_suffix}.pkl')
     files = glob.glob(pattern)
     all_decoding = []
     subject_ids = []
@@ -37,7 +32,7 @@ def load_data_for_classifier(clf_suffix):
         player = int(parts[1].split('-')[1])
         
         # Determine winner for this pair
-        events_file = os.path.join(path_to_data, f'sub-{pair:02d}', 'eeg', f'sub-{pair:02d}_task-RPS_events.tsv')
+        events_file = os.path.join(PATH_TO_DATA, f'sub-{pair:02d}', 'eeg', f'sub-{pair:02d}_task-RPS_events.tsv')
         winner_ppt = None
         if os.path.exists(events_file):
             events = pd.read_csv(events_file, sep='\t')
@@ -66,7 +61,7 @@ def load_data_for_classifier(clf_suffix):
 
 def run_debug():
     # Find all unique classifier suffixes
-    pattern = os.path.join(deriv_dir, 'pair-*_player-*_task-RPS_decoding_*.pkl')
+    pattern = os.path.join(DERIV_DIR, 'pair-*_player-*_task-RPS_decoding_*.pkl')
     files = glob.glob(pattern)
     clf_suffixes = set()
     for f in files:
@@ -111,7 +106,7 @@ def run_debug():
         print("\n  OVERALL ACCURACY (Average across all 5 seconds)")
         print(f"  Chance level = {chance}%")
         
-        for t in range(num_tests):
+        for t in range(NUM_TESTS):
             mn_all = mean_acc[t].mean()
             print(f"\n  {conditions[t]}:")
             print(f"    Overall: {mn_all:.2f}%")
@@ -125,8 +120,8 @@ def run_debug():
         
         # Optional quick plot
         fig, axes = plt.subplots(2,2, figsize=(10,8))
-        x = np.linspace(0.125, 4.875, 20)  # bin centres
-        for t in range(num_tests):
+        x = np.linspace(0.125, 4.875, NUM_TIME_BINS)  # bin centres
+        for t in range(NUM_TESTS):
             ax = axes.flat[t]
             ax.axhline(chance, color='k', ls='--')
             ax.plot(x, mean_acc[t], 'o-', color='blue', label='Overall')
@@ -140,7 +135,7 @@ def run_debug():
             ax.set_xlabel('Time (s)')
             ax.set_ylabel('Accuracy (%)')
         plt.tight_layout()
-        out_plot = os.path.join(deriv_dir, f'debug_decoding_{clf}.png')
+        out_plot = os.path.join(DERIV_DIR, f'debug_decoding_{clf}.png')
         plt.savefig(out_plot)
         print(f"\n  Debug plot saved to: {out_plot}")
 

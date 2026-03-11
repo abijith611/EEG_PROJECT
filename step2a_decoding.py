@@ -22,12 +22,8 @@ import pickle
 from joblib import Parallel, delayed
 import time
 import argparse
+from config import PATH_TO_DATA, DERIV_DIR, PAIR_IDS, NUM_TRIALS, NUM_CHAN, SEARCHLIGHT_CLASSIFIERS, N_JOBS_SEARCHLIGHT, DEFAULT_CLASSIFIERS, get_pos_dict
 
-# ========== USER ADJUSTABLE PARAMETERS ==========
-N_JOBS_SEARCHLIGHT = -1   # Use all CPU cores for searchlight. Set to 1 to disable parallelism.
-SKIP_SEARCHLIGHT = False  # Set to True to skip searchlight (faster for testing).
-DEFAULT_CLASSIFIERS = ['svm', 'lda', 'logistic', 'ridge']  # can be overridden by command line
-SEARCHLIGHT_CLASSIFIERS = {'svm', 'lda'}   # only these will run searchlight
 # =================================================
 
 # Optional: tqdm for fancy progress bars
@@ -39,32 +35,7 @@ except ImportError:
     def tqdm(iterable, **kwargs):
         return iterable
 
-path_to_data = 'project/ds006761'
-pair_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-            21, 22, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34]
-num_trials = 480
-num_chan = 64
-
-# Exact channel list as per the author's FieldTrip layout mapping 
-matlab_layout_labels = [
-    'Fp1', 'AF7', 'AF3', 'F1', 'F3', 'F5', 'F7', 'FT7', 'FC5', 'FC3', 
-    'FC1', 'C1', 'C3', 'C5', 'T7', 'TP7', 'CP5', 'CP3', 'CP1', 'P1', 
-    'P3', 'P5', 'P7', 'P9', 'PO7', 'PO3', 'O1', 'Iz', 'Oz', 'POz', 
-    'Pz', 'CPz', 'Fpz', 'Fp2', 'AF8', 'AF4', 'AFz', 'Fz', 'F2', 'F4', 
-    'F6', 'F8', 'FT8', 'FC6', 'FC4', 'FC2', 'FCz', 'Cz', 'C2', 'C4', 
-    'C6', 'T8', 'TP8', 'CP6', 'CP4', 'CP2', 'P2', 'P4', 'P6', 'P8', 
-    'P10', 'PO8', 'PO4', 'O2'
-]
-
-# Load exact 3D coordinates from the provided biosemi64.mat
-try:
-    biosemi_mat = scipy.io.loadmat('biosemi64.mat')
-    orig_coords = biosemi_mat['biosemi64']
-    pos_dict = {label: orig_coords[i] for i, label in enumerate(matlab_layout_labels)}
-    print("Loaded biosemi64.mat coordinates.")
-except Exception as e:
-    pos_dict = None
-    print("Could not load biosemi64.mat, using fallback neighbour lists.")
+pos_dict = get_pos_dict()
 
 def get_time_bins(epochs):
     print("   Binning data into 250ms windows...")
@@ -90,7 +61,7 @@ def get_time_bins(epochs):
     time_windows_AB = np.array([np.arange(0, 1.76, 0.25), np.arange(0.25, 2.01, 0.25)]).T
     time_windows_C = np.array([np.arange(0, 0.76, 0.25), np.arange(0.25, 1.01, 0.25)]).T
     
-    binned_data = np.zeros((data.shape[0], num_chan, 20))
+    binned_data = np.zeros((data.shape[0], NUM_CHAN, 20))
     bin_idx = 0
     for d, tw in zip([data_A, data_B], [time_windows_AB, time_windows_AB]):
         for w in tw:
@@ -176,8 +147,7 @@ def compute_searchlight_for_condition(X_ps, y_ps, groups, neighbor_lists, pipeli
 def run_decoding(max_pairs=None, classifiers=None):
     if classifiers is None:
         classifiers = DEFAULT_CLASSIFIERS
-    deriv_dir = os.path.join(path_to_data, 'derivatives')
-    pairs_to_run = pair_ids[:max_pairs] if max_pairs is not None else pair_ids
+    pairs_to_run = PAIR_IDS[:max_pairs] if max_pairs is not None else PAIR_IDS
     num_pairs = len(pairs_to_run)
     
     # Mapping from column index to descriptive name
@@ -187,30 +157,30 @@ def run_decoding(max_pairs=None, classifiers=None):
     for p_idx, pair in enumerate(pairs_to_run):
         print(f'Loading pair {p_idx + 1} of {num_pairs} (ID: {pair})')
         sub_str = f'sub-{pair:02d}'
-        events = pd.read_csv(os.path.join(path_to_data, sub_str, 'eeg', f'{sub_str}_task-RPS_events.tsv'), sep='\t')
+        events = pd.read_csv(os.path.join(PATH_TO_DATA, sub_str, 'eeg', f'{sub_str}_task-RPS_events.tsv'), sep='\t')
         
         ev_p1 = events[['player1_resp', 'player2_resp', 'outcome']].values
-        hist_p1 = np.full((num_trials, 2), np.nan)
+        hist_p1 = np.full((NUM_TRIALS, 2), np.nan)
         hist_p1[1:] = ev_p1[:-1, :2]
         behav_p1 = np.column_stack([ev_p1, hist_p1])
         
         ev_p2_raw = ev_p1[:, [1, 0, 2]]
         ev_p2_raw[ev_p1[:, 2] == 2, 2] = 3
         ev_p2_raw[ev_p1[:, 2] == 3, 2] = 2
-        hist_p2 = np.full((num_trials, 2), np.nan)
+        hist_p2 = np.full((NUM_TRIALS, 2), np.nan)
         hist_p2[1:] = ev_p2_raw[:-1, :2]
         behav_p2 = np.column_stack([ev_p2_raw, hist_p2])
 
         for ppt, behav in zip([1, 2], [behav_p1, behav_p2]):
             print(f'   Processing participant {ppt}')
-            epoch_file = os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS-epo.fif')
+            epoch_file = os.path.join(DERIV_DIR, f'pair-{pair:02d}_player-{ppt}_task-RPS-epo.fif')
             if not os.path.exists(epoch_file):
                 print(f"      File {epoch_file} not found, skipping.")
                 continue
             epochs = mne.read_epochs(epoch_file, preload=True, verbose=False)
             epochs.set_eeg_reference('average', projection=False, verbose=False)
             
-            sel_idx = np.setdiff1d(np.arange(num_trials), np.arange(0, 480, 40))
+            sel_idx = np.setdiff1d(np.arange(NUM_TRIALS), np.arange(0, 480, 40))
             behav_data = behav[sel_idx]
             binned_data = get_time_bins(epochs[sel_idx])
             
@@ -221,10 +191,10 @@ def run_decoding(max_pairs=None, classifiers=None):
                     [pos_dict[c] for c in ch_names],
                     [pos_dict[c] for c in ch_names]
                 )
-                neighbor_lists = [np.argsort(dist_mat[i])[0:5] for i in range(num_chan)]
+                neighbor_lists = [np.argsort(dist_mat[i])[0:5] for i in range(NUM_CHAN)]
             else:
                 print("      Using fallback neighbour lists (by index).")
-                neighbor_lists = [np.arange(max(0, i-2), min(num_chan, i+3)) for i in range(num_chan)]
+                neighbor_lists = [np.arange(max(0, i-2), min(NUM_CHAN, i+3)) for i in range(NUM_CHAN)]
 
             # Loop over requested classifiers
             for clf_name in classifiers:
@@ -246,7 +216,7 @@ def run_decoding(max_pairs=None, classifiers=None):
                         print(f"            WARNING: Only {len(unique_classes)} class(es) in y_ps. Skipping this target.")
                         decoding_results.append([np.nan]*20)
                         if not SKIP_SEARCHLIGHT:
-                            searchlight_results.append(np.full((num_chan,20), np.nan))
+                            searchlight_results.append(np.full((NUM_CHAN,20), np.nan))
                         continue
                     
                     pipeline = get_classifier(clf_name, seed)
@@ -273,7 +243,7 @@ def run_decoding(max_pairs=None, classifiers=None):
                     # Searchlight – parallelised (skip if flag set)
                     if SKIP_SEARCHLIGHT:
                         print("            Skipping searchlight as requested.")
-                        searchlight_results.append(np.full((num_chan,20), np.nan))
+                        searchlight_results.append(np.full((NUM_CHAN,20), np.nan))
                     else:
                         sl_acc = compute_searchlight_for_condition(
                             X_ps, y_ps, groups, neighbor_lists, pipeline, cv
@@ -282,7 +252,7 @@ def run_decoding(max_pairs=None, classifiers=None):
                         print("            Searchlight done.")
                     
                 # Save results with classifier name in filename
-                out_file = os.path.join(deriv_dir, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding_{clf_name}.pkl')
+                out_file = os.path.join(DERIV_DIR, f'pair-{pair:02d}_player-{ppt}_task-RPS_decoding_{clf_name}.pkl')
                 if os.path.exists(out_file):
                     print(f"      Skipping classifier {clf_name} – output already exists.")
                     continue

@@ -12,20 +12,16 @@ import matplotlib.pyplot as plt
 from scipy import stats
 from scipy.stats import gaussian_kde
 import matplotlib.patches as mpatches
+from config import PATH_TO_DATA, PLOT_DIR, PAIR_IDS, DERIV_DIR
 
-path_to_data = 'project/ds006761'
-root_dir = 'EEG-PROJECT'
-plot_dir = os.path.join(root_dir, 'results', 'plots')
-os.makedirs(plot_dir, exist_ok=True)
-
-pair_ids = list(range(1, 10)) + list(range(11, 23)) + list(range(25, 35))
+os.makedirs(PLOT_DIR, exist_ok=True)
 
 def draw_raincloud(ax, data_list, colors, x_labels):
     """Custom function to draw raincloud plots with extended KDE tails.
        If a dataset has fewer than 2 points, the half‑violin is omitted."""
     x_pos = np.arange(len(data_list))
     
-    # 1. Half-violins (Right side) using custom KDE for extended tails
+    # 1. Half-violins using custom KDE for extended tails
     for i, data in enumerate(data_list):
         y = data[~np.isnan(data)]
         if len(y) >= 2:
@@ -46,14 +42,14 @@ def draw_raincloud(ax, data_list, colors, x_labels):
             # Not enough data for KDE – optionally print a warning
             print(f"Warning: Not enough data points (n={len(y)}) to draw half-violin for condition {i}")
 
-    # 2. Boxplots ("candle bars") – they work even with 1 point (though box will be degenerate)
+    # 2. Boxplots
     bp = ax.boxplot(data_list, positions=x_pos, widths=0.12, patch_artist=True,
                     showfliers=False, medianprops={'color': 'white', 'linewidth': 2},
                     boxprops={'facecolor': 'black', 'edgecolor': 'black'},
                     whiskerprops={'color': 'black', 'linewidth': 1.5},
                     capprops={'color': 'black', 'linewidth': 1.5})
 
-    # 3. Scatter points (Left side)
+    # 3. Scatter points
     for i, data in enumerate(data_list):
         y = data[~np.isnan(data)]
         if len(y) > 0:
@@ -62,8 +58,9 @@ def draw_raincloud(ax, data_list, colors, x_labels):
 
     ax.set_xticks(x_pos)
     ax.set_xticklabels(x_labels)
+
 def plot_behavior(max_pairs=None):
-    pairs_to_run = pair_ids[:max_pairs] if max_pairs is not None else pair_ids
+    pairs_to_run = PAIR_IDS[:max_pairs] if max_pairs is not None else PAIR_IDS
     num_pairs_run = len(pairs_to_run)
     
     outcome_summary = np.zeros((num_pairs_run, 3))
@@ -72,7 +69,7 @@ def plot_behavior(max_pairs=None):
     prop_change = np.zeros((3, num_pairs_run * 2)) 
     
     for p_idx, pair in enumerate(pairs_to_run):
-        events_file = os.path.join(path_to_data, f'sub-{pair:02d}', 'eeg', f'sub-{pair:02d}_task-RPS_events.tsv')
+        events_file = os.path.join(PATH_TO_DATA, f'sub-{pair:02d}', 'eeg', f'sub-{pair:02d}_task-RPS_events.tsv')
         if not os.path.exists(events_file): continue
         events = pd.read_csv(events_file, sep='\t')
         
@@ -123,7 +120,7 @@ def plot_behavior(max_pairs=None):
             if stay_draw: prop_change[2, ppt_idx] = np.mean(stay_draw) * 100
 
     # Load Markov Chain data
-    mc_file = os.path.join(path_to_data, 'derivatives', 'markov_chain_pred.npy')
+    mc_file = os.path.join(DERIV_DIR, 'markov_chain_pred.npy')
     if os.path.exists(mc_file):
         mc_data = np.load(mc_file, allow_pickle=True).item()
         pred_acc = mc_data['Mean_Accuracy'][:, :, 5:] * 100
@@ -158,7 +155,6 @@ def plot_behavior(max_pairs=None):
         counts = [np.sum(rank_data == 1), np.sum(rank_data == 2), np.sum(rank_data == 3)]
         ax_inset.pie(counts, labels=['R', 'P', 'S'], colors=rps_colors, textprops={'fontsize': 8})
         # Add Pie Chart Legend (Vertical, tucked inside on the right)
-        import matplotlib.patches as mpatches
         handles = [mpatches.Patch(color=c, label=l) for c, l in zip(rps_colors, ['Rock', 'Paper', 'Scissors'])]
         ax.legend(handles=handles, loc='upper right', bbox_to_anchor=(0.98, 0.75), ncol=1, frameon=False, fontsize=10)
 
@@ -191,7 +187,7 @@ def plot_behavior(max_pairs=None):
     ax.set_ylabel('Accuracy (%)')
     ax.set_ylim(25, 65)
     
-    plt.savefig(os.path.join(plot_dir, 'Figure1.png'), dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig(os.path.join(PLOT_DIR, 'Figure1.png'), dpi=300, bbox_inches='tight', facecolor='white')
     print("Figure 1 saved.")
 
 if __name__ == '__main__':
