@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  eeg-pipeline:
+    build: .
+    container_name: eeg_project
+    volumes:
+      # Mount the dataset directory from host to container
+      - ./project/ds006761:/app/project/ds006761
+      # Mount the derivatives folder to persist results
+      - ./project/ds006761/derivatives:/app/project/ds006761/derivatives
+    # If you want to pass command-line arguments to run_all.py, add them here
+    # command: --test_pairs 4 --classifiers svm lda
+    stdin_open: true
+    tty: true
