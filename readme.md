@@ -32,6 +32,7 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 ├── debug_decoding.py # Diagnostic script that prints decoding statistics  
 ├── project/ds006761 # The dataset directory  
 ├── Dockerfile # Docker image definition (Python 3.11.9 + R + BayesFactor)  
+├── .dockerignore # This ignores the entire project/ folder and other unnecessary files during the build
 ├── docker-compose.yml # Docker Compose configuration (mounts data volumes)  
 ├── download_data.sh # Entrypoint script that downloads dataset via DataLad  
 ├── README.md # This file  
