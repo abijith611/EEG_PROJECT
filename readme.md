@@ -149,15 +149,15 @@ The main entry point is `run_pipeline.py`. It sequentially executes all preproce
 
 **Full analysis** _(may take several hours / days depending on hardware):_
 ```
-python run_all.py  
+python run_pipeline.py  
 ```
 **Quick test** _(only 4 pairs, only SVM and LDA, skip searchlight computation):_
 ```
-python run_all.py --test_pairs 4 --classifiers svm lda --skip_searchlight  
+python run_pipeline.py --test_pairs 4 --classifiers svm lda --skip_searchlight  
 ```
 **Run only a specific classifier** _(e.g., logistic regression):_
 ```
-python run_all.py --classifiers logistic  
+python run_pipeline.py --classifiers logistic  
 ```
 ### Performance Optimization
 
