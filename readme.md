@@ -273,4 +273,4 @@ Central configuration file that holds all shared constants and settings used by 
 - **BayesFactor R package:** <https://cran.r-project.org/package=BayesFactor>
 - **MNE‑Python:** <https://mne.tools/>
 
-For any questions, please contact [Shriram](<mailto:st194304@stud.uni-stuttgart.de>), [Abijith](<mailto:st194438@stud.uni-stuttgart.de>), [Tejesh](<mailto:st194770@stud.uni-stuttgart.de>).
+For any questions, please contact: [Shriram](<mailto:st194304@stud.uni-stuttgart.de>), [Abijith](<mailto:st194438@stud.uni-stuttgart.de>), [Tejesh](<mailto:st194770@stud.uni-stuttgart.de>).
