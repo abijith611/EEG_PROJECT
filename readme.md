@@ -45,6 +45,8 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 ├── step3b_plot_Fig2_Fig3.py # Generates Figures 2 & 3 (decoding accuracy and Bayes factors)  
 └── results/plots/ # Output directory for figures (created automatically)  
 
+```
+
 ## Requirements
 
 ### Software
