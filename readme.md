@@ -8,7 +8,7 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 - [Requirements](#requirements)
 - [Dataset](#dataset)
 - [Setup Instructions](#setup-instructions)
-  - [Automated Setup (Recommended)](#automated-setup-(recommended))
+  - [Automated Setup (Recommended)](#automated-setup-recommended)
   - [Manual Setup](#manual-setup)
 - [Usage](#usage)
   - [Command‑Line Arguments](#command-line-arguments)
