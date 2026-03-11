@@ -1,8 +1,0 @@
-# Ensure shell scripts always use LF line endings
-*.sh text eol=lf
-
-# Binary files (like .mat, .pkl, .npy) should not be modified
-*.mat binary
-*.pkl binary
-*.npy binary
-*.fif binary

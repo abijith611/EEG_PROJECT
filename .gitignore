@@ -1,5 +1,6 @@
 # Ignore the project directory
 project/
+venv_eeg/
 
 # Ignore all pycache folders
 **/__pycache__/
