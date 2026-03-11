@@ -13,12 +13,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     libcurl4-openssl-dev \
     libxml2-dev \
+    libnlopt-dev \          
+    libgsl-dev \             
+    libfftw3-dev \           
+    cmake \                  
+    gfortran \               
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install BayesFactor with verbose output and specify a known library path
-RUN Rscript -e "install.packages('BayesFactor', repos='https://cloud.r-project.org/', dependencies=TRUE, verbose=TRUE)" \
-&& Rscript -e "library(BayesFactor)"
+# Install BayesFactor and its dependencies
+# Use multiple cores to speed up compilation, and install nloptr first to catch errors early
+RUN Rscript -e "install.packages('nloptr', repos='https://cloud.r-project.org/', Ncpus=4)" \
+    && Rscript -e "install.packages('BayesFactor', repos='https://cloud.r-project.org/', dependencies=TRUE, Ncpus=4)" \
+    && Rscript -e "library(BayesFactor)"
 
 # Set working directory
 WORKDIR /app
