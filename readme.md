@@ -88,11 +88,12 @@ The full EEG dataset is **78 GB** and must be downloaded from OpenNeuro.
 If you use the Docker method, the dataset will be downloaded automatically via datalad.
 
 If you install manually, you can download it using datalad:
-
-pip install datalad  
-datalad install \[<https://github.com/OpenNeuroDatasets/ds006761.git\>](<https://github.com/OpenNeuroDatasets/ds006761.git>) project/ds006761  
-cd project/ds006761  
-datalad get .  
+```
+pip install datalad
+datalad install https://github.com/OpenNeuroDatasets/ds006761.git project/ds006761
+cd project/ds006761
+datalad get .
+```
 
 ## Setup Instructions
 
@@ -112,7 +113,9 @@ datalad get .
 - **Install R and BayesFactor**
   - Install R from <https://www.r-project.org/>
   - In R, run:  
-        install.packages("BayesFactor", repos = "https://cloud.r-project.org/")
+  ```R
+  install.packages("BayesFactor", repos = "https://cloud.r-project.org/")
+  ```
 
 - **Download the dataset** _(if not already present)_  
     mkdir -p project/ds006761  
