@@ -152,11 +152,11 @@ The main entry point is run_all.py. It sequentially executes all preprocessing, 
 | **Argument** | **Description** | **Default** |
 | --- | --- | --- |
 | \--test_pairs N | Process only the first N pairs (for quick testing) | None (all pairs) |
-| --- | --- | --- |
+
 | \--classifiers LIST | Space‑separated list of classifiers to run | svm lda logistic ridge |
-| --- | --- | --- |
+
 | \--skip_searchlight | Skip the computationally expensive searchlight analysis | False |
-| --- | --- | --- |
+
 
 **Available classifiers:** svm, lda, logistic, ridge
 
