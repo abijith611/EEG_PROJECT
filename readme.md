@@ -76,7 +76,7 @@ _All packages are listed in the Dockerfile and will be installed automatically w
 - **BayesFactor** - install inside R with:
 
 ```R
-  install.packages("BayesFactor", repos = "https://cloud.r-project.org/")
+install.packages("BayesFactor", repos = "https://cloud.r-project.org/")
 ```
 
 ## Dataset
@@ -103,19 +103,19 @@ datalad get .
 
 - **Clone the repository**  
 ```
-    git clone &lt;your-repo-url&gt;  
-    cd &lt;repo-folder&gt;  
+git clone <your-repo-url>
+cd <repo-folder>
 ```
 
 - **Create and activate a Python virtual environment** _(recommended)_  
 ```
-    python3.11 -m venv venv  
-    source venv/bin/activate # On Windows: venv\\Scripts\\activate  
+python3.11 -m venv venv  
+source venv/bin/activate # On Windows: venv\\Scripts\\activate  
 ```
 
 - **Install Python packages**  
 ```
-    pip install mne numpy pandas scipy scikit-learn pingouin matplotlib rpy2 tqdm joblib datalad  
+pip install mne numpy pandas scipy scikit-learn pingouin matplotlib rpy2 tqdm joblib datalad  
 ```
 
 - **Install R and BayesFactor**
@@ -123,22 +123,21 @@ datalad get .
   - In R, run:  
 
 ```R
-  install.packages("BayesFactor", repos = "https://cloud.r-project.org/")
+install.packages("BayesFactor", repos = "https://cloud.r-project.org/")
 ```
 
 - **Download the dataset** _(if not already present)_  
 ```
-    mkdir -p project/ds006761  
-    datalad install \[<https://github.com/OpenNeuroDatasets/ds006761.git\>](<https://github.com/OpenNeuroDatasets/ds006761.git>) project/ds006761  
-    cd project/ds006761  
-    datalad get .  
-    cd ../..  
-
+mkdir -p project/ds006761  
+datalad install \[<https://github.com/OpenNeuroDatasets/ds006761.git\>](<https://github.com/OpenNeuroDatasets/ds006761.git>) project/ds006761  
+cd project/ds006761  
+datalad get .  
+cd ../..  
 ```
 
 - **Run the pipeline**  
 ```
-    python run_all.py  
+python run_all.py  
 ```
 _(Add optional arguments as described in the_ [_Usage_](#usage) _section.)_
 
@@ -149,13 +148,13 @@ This method guarantees an identical environment and handles the dataset download
 - **Install Docker and Docker Compose** (Docker Desktop includes both).
 - **Clone the repository**  
 ```
-    git clone <your-repo-url>
-    cd <repo-folder>
+git clone <your-repo-url>
+cd <repo-folder>
 ```
 
 - **Run the pipeline**  
 ```
-    docker-compose up  
+docker-compose up  
 ```
   - **First run:** The Docker image will be built (Python 3.11.9, R, BayesFactor, all Python packages). Then the dataset will be downloaded via datalad into project/ds006761/ (on your host). This may take a while (78 GB). Subsequent runs will skip the download.
   - After the download, the full pipeline executes with default settings (all pairs, all classifiers).
