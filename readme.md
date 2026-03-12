@@ -30,6 +30,7 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 ├── debug_decoding.py                 # Diagnostic script that prints decoding stats & plots averages
 ├── project/ds006761/                 # The dataset directory (created during setup)
 ├── README.md                         # This documentation file 
+├── requirements.txt                  # Exact Python package versions
 ├── setup_pipeline.py                 # Automated cross-platform setup script  
 ├── run_pipeline.py                   # Master script that executes the entire pipeline  
 ├── step1_preprocessing.py            # Raw data import, bad channel repair, epoching, downsampling  
