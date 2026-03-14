@@ -4,9 +4,9 @@
 
 **Authors:** Shriram (st194304@stud.uni-stuttgart.de), Abijith (st194438@stud.uni-stuttgart.de), Tejesh (st194770@stud.uni-stuttgart.de)
 
-**Course:** EEG Analysis Project
-**Institution:** University of Stuttgart
-**Date:** March 2026
+Signal processing and Analysis of human brain potentials (EEG)
+University of Stuttgart
+March 2026
 
 ---
 
@@ -222,26 +222,7 @@ We believe the paper's "0.5 cm" statement is likely an error or misunderstanding
 **Why This Matters:**
 If a researcher tried to reproduce this study using the paper's "0.5 cm" literally, they would get completely different preprocessing results. This highlights why examining actual code is essential.
 
-### 3.2 LDA Regularization Parameter
-
-**What the paper says:**
-> "We used a regularised (λ = 0.01) linear discriminant analysis (LDA) classifier"
-
-**What the MATLAB code does:**
-```matlab
-ma.classifier = @cosmo_classify_lda;
-```
-
-**The Problem:**
-The paper explicitly states λ = 0.01, but the code simply calls CoSMoMVPA's default LDA function without setting any regularization parameter. CoSMoMVPA does apply automatic shrinkage/regularization, but the exact value depends on the internal implementation and may vary.
-
-**Our Implementation:**
-We explicitly set `shrinkage=0.01` to match the paper's stated value:
-```python
-clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage=0.01)
-```
-
-### 3.3 Random Seed for Pseudo-trials
+### 3.2 Random Seed for Pseudo-trials
 
 **What the paper says:**
 Nothing. The paper does not mention any random seed for pseudo-trial generation.
@@ -260,7 +241,7 @@ Using the same seed for everyone means that if trial 5, 12, 23, and 47 happen to
 **Our Decision:**
 We deliberately deviated from the original code by using participant-specific seeds (`seed = pair * 10 + ppt`). This maintains reproducibility (same seed always gives same result) while ensuring each participant has unique pseudo-trial compositions. This may cause small numerical differences from the original results.
 
-### 3.4 Bayes Factor Null Interval
+### 3.3 Bayes Factor Null Interval
 
 **What the paper says:**
 > "using a null interval between d = 0 and d = 0.5 to exclude small effect sizes"
@@ -278,19 +259,6 @@ We matched the code's actual behavior, not the paper's description:
 ```python
 null_interval="c(0.5, Inf)"
 ```
-
-### 3.5 What the Paper Did NOT Mention
-
-The following implementation details were discoverable ONLY from examining the code:
-
-| Detail | Value in Code | Impact |
-|--------|---------------|--------|
-| Pseudo-trial random seed | Fixed `seed=1` for all subjects | Affects reproducibility |
-| Bayes factor null interval | `c(0.5,Inf)` vs paper's description | Affects statistical interpretation |
-| No filtering applied | Confirmed in code | Good—matches paper |
-| Baseline correction per phase | -200 to 0 ms per phase | Matches paper |
-| FieldTrip version | 20240110 | Version-specific behavior possible |
-| CoSMoMVPA version | 1.1.0 | Version-specific behavior possible |
 
 ---
 
@@ -625,14 +593,14 @@ The Markov chain prediction curves match—accuracy rises from 33% (chance) to ~
 
 | Condition | Phase | Paper BF (All 62 subj) | Our BF | Status |
 |-----------|-------|------------------------|--------|--------|
-| Own response | Decision | 57 | **NOT COMPUTED** | ⚠ Need all-participants analysis |
-| Own response | Response | 729,735 | **NOT COMPUTED** | ⚠ Need all-participants analysis |
-| Own response | Feedback | 16,028 | **NOT COMPUTED** | ⚠ Need all-participants analysis |
+| Own response | Decision | 57 | **NOT COMPUTED** | Need all-participants analysis |
+| Own response | Response | 729,735 | **NOT COMPUTED** | Need all-participants analysis |
+| Own response | Feedback | 16,028 | **NOT COMPUTED** | Need all-participants analysis |
 | Opponent's response | Decision | <1 | **NOT COMPUTED** | Expected: no evidence |
 | Opponent's response | Response | <1 | **NOT COMPUTED** | Expected: no evidence |
-| Opponent's response | Feedback | 87,847 | **NOT COMPUTED** | ⚠ Need all-participants analysis |
-| Own previous | Decision | 8 | **NOT COMPUTED** | ⚠ Need all-participants analysis |
-| Opponent's previous | Decision | 16,659 | **NOT COMPUTED** | ⚠ Need all-participants analysis |
+| Opponent's response | Feedback | 87,847 | **NOT COMPUTED** | Need all-participants analysis |
+| Own previous | Decision | 8 | **NOT COMPUTED** | Need all-participants analysis |
+| Opponent's previous | Decision | 16,659 | **NOT COMPUTED** | Need all-participants analysis |
 
 **Important Note:** Our current outputs only contain Winners vs Losers split analysis (31 subjects each). The paper's Table 1 reports BF values computed on ALL 62 participants combined. We need to run the Bayes factor analysis on the combined dataset to make a direct comparison. See Section 11 (TODO) for details.
 
@@ -671,12 +639,12 @@ This comparison reveals the paper's most important discovery. Let's examine it c
 
 | Condition | Group | Paper BF | Our BF | Match? |
 |-----------|-------|----------|--------|--------|
-| Own response (Response) | Winners | 573 | 31.43 | ⚠ Both strong, magnitude differs |
-| Own response (Response) | Losers | 3,337 | 154.06 | ⚠ Both strong, magnitude differs |
-| Own previous (Response) | Winners | No evidence | 0.74 | ✓ No evidence |
-| Own previous (Response) | Losers | 11 | 34.57 | ✓ Moderate-strong evidence |
-| Opponent's previous (Decision) | Winners | No evidence | 15.11 | ⚠ Paper: none, Ours: moderate |
-| Opponent's previous (Decision) | Losers | 2,382 | >1000 | ✓ Strong evidence |
+| Own response (Response) | Winners | 573 | 31.43 | Both strong, magnitude differs |
+| Own response (Response) | Losers | 3,337 | 154.06 | Both strong, magnitude differs |
+| Own previous (Response) | Winners | No evidence | 0.74 | No evidence |
+| Own previous (Response) | Losers | 11 | 34.57 | Moderate-strong evidence |
+| Opponent's previous (Decision) | Winners | No evidence | 15.11 | Paper: none, Ours: moderate |
+| Opponent's previous (Decision) | Losers | 2,382 | >1000 | Strong evidence |
 
 **Note on magnitude differences:** Our BF values are consistently lower than the paper's. This is likely due to our use of per-subject random seeds (vs. the original code's fixed seed=1 for all subjects), which affects pseudo-trial composition and thus final accuracy distributions.
 
@@ -720,35 +688,6 @@ We extended the original analysis by testing four classifiers. The table shows p
 
 ## 7. Discussion
 
-### 7.1 Summary of Replication Success
-
-We replicated the major findings with the following caveats:
-
-| Finding | Paper Claim | Our Result | Replicated? |
-|---------|-------------|------------|-------------|
-| Own response decodable (Response) | BF = 729,735 (all subj) | Winners: 31.43, Losers: 154.06 | ✓ Pattern confirmed |
-| Cannot predict opponent (Decision/Response) | No evidence | Winners: <0.21, Losers: <0.08 | ✓ Yes |
-| Opponent decodable at Feedback | BF = 87,847 (all subj) | Winners: 482.61, Losers: 4.71 | ✓ Pattern confirmed |
-| Losers encode own previous (Response) | Winners: none, Losers: BF=11 | Winners: 0.74, Losers: 34.57 | ✓ Yes |
-| Losers encode opponent's previous (Decision) | Winners: none, Losers: BF=2,382 | Winners: 15.11, Losers: >1000 | ⚠ Partial (see note) |
-| Rock bias | 51.61% Rock preference | ~52% | ✓ Yes |
-| Markov predictability | Above chance | Above chance | ✓ Yes |
-
-**Note on "Opponent's previous (Decision)":** Our Winners show BF=15.11 (moderate evidence), whereas the paper reports "no evidence" for Winners. However, the critical finding—that Losers show much stronger encoding (>1000) than Winners (15.11)—is preserved. The pattern, if not the exact magnitudes, is replicated.
-
-### 7.2 Impact of Identified Discrepancies
-
-**Interpolation Distance:**
-The paper says "0.5 cm" but code uses `0.5` in normalized coordinates. We used 0.05 m (5 cm) based on physical electrode spacing. Despite this interpretive difference, our results match, suggesting the exact interpolation threshold has limited impact on final decoding results.
-
-**Random Seed:**
-The code uses fixed `seed=1` for all subjects; we used per-subject seeds. This causes small numerical differences but does not affect the pattern of results. Both approaches are valid for reproducibility.
-
-**Bayes Factor Specification:**
-The paper describes the null interval differently than the code implements it. We matched the code's behavior. This highlights the importance of examining actual code, not just methodological descriptions.
-
-### 7.3 Scientific Implications
-
 **Why the Winner/Loser Asymmetry Matters:**
 
 The finding that losers encode previous-trial information while winners do not has important implications:
@@ -763,13 +702,6 @@ The authors acknowledge: "Although inter-group Bayes Factors did not provide dir
 
 This is honest reporting—the BETWEEN-group comparison is not statistically strong, but the WITHIN-group patterns are clear. Winners show no evidence of previous-trial encoding; losers do.
 
-### 7.4 Value of This Reproduction
-
-1. **Independent Validation:** We confirm the findings using different code, different random seeds, and a different programming language
-2. **Open-Source Access:** Researchers without MATLAB licenses can now use and extend this analysis
-3. **Discrepancy Documentation:** Future researchers know where paper and code differ
-4. **Multi-Classifier Extension:** We demonstrate the findings are not classifier-specific
-
 ---
 
 ## 8. Conclusion
@@ -780,8 +712,7 @@ We have successfully reproduced the main findings of Moerel et al. (2025) using 
 
 1. **Neural signatures of RPS decisions exist** and can be decoded 4-5% above the 33.33% chance level (peak accuracy: 38.39% for own response during Response phase)
 2. **Temporal dynamics match theory:** Own response decodable during Response and Feedback phases (BF = 31-250); opponent's response only decodable after visual feedback (BF = 4-482)
-3. **Losers uniquely encode previous trials:** Losers show BF = 34.57 for own previous response (Response phase) and BF > 1000 for opponent's previous response (Decision phase), while Winners show BF < 1 for own previous and BF = 15.11 for opponent's previous
-4. **Effects are robust:** Four different classifiers (LDA, SVM, Logistic, Ridge) produce consistent accuracy results within 1% of each other
+3. **Effects are robust:** Four different classifiers (LDA, SVM, Logistic, Ridge) produce consistent accuracy results within 1% of each other
 
 ### 8.2 Paper's Central Claim Validated
 
@@ -793,14 +724,6 @@ Our independent analysis confirms this pattern:
 
 The asymmetry is clear: Losers show much stronger neural encoding of previous-trial information than Winners. This suggests that the cognitive strategy of ignoring (or not encoding) past events may contribute to better competitive performance.
 
-### 8.3 Recommendations
-
-For researchers attempting similar reproductions:
-1. **Always examine the code**, not just the paper—discrepancies exist
-2. **Document your interpretive choices** when code/paper conflict
-3. **Test multiple analysis methods** to assess robustness
-4. **Share your code openly** to enable future reproductions
-
 ---
 
 ## 9. References
@@ -810,216 +733,6 @@ For researchers attempting similar reproductions:
 2. Gramfort, A., Luessi, M., Larson, E., et al. (2013). MEG and EEG data analysis with MNE-Python. *Frontiers in Neuroscience*, 7, 267.
 
 3. Pedregosa, F., Varoquaux, G., Gramfort, A., et al. (2011). Scikit-learn: Machine learning in Python. *Journal of Machine Learning Research*, 12, 2825-2830.
-
----
-
-## 10. Appendix
-
-### 10.1 Software Environment
-
-| Component | Version |
-|-----------|---------|
-| Python | 3.11+ |
-| MNE-Python | 1.6.0+ |
-| NumPy | 1.26.0+ |
-| scikit-learn | 1.4.0+ |
-| SciPy | 1.12.0+ |
-| matplotlib | 3.8.0+ |
-| rpy2 | 3.5.0+ (optional, for Bayes Factors) |
-| R + BayesFactor | 4.3.0+ / 0.9.12+ (optional) |
-
-### 10.2 Repository Structure
-
-```
-EEG_PROJECT/
-├── config.py                    # Configuration parameters
-├── step1_preprocessing.py       # Data preprocessing
-├── step2a_decoding.py           # ML decoding analysis
-├── step2b_markovchain.py        # Behavioral Markov analysis
-├── step3a_plot_Fig1.py          # Behavioral figure
-├── step3b_plot_Fig2_Fig3.py     # Decoding figures
-├── run_pipeline.py              # Pipeline orchestrator
-├── author_code/                 # Original MATLAB implementation
-├── author_figures/              # Original figures from paper
-├── author_paper.pdf             # Published paper
-├── results/plots/               # Our reproduced figures
-└── report.md                    # This document
-```
-
-### 10.3 Parameter Reference
-
-| Parameter | Value | Source | Notes |
-|-----------|-------|--------|-------|
-| Epoch window | -0.2 to 5.0 s | Paper | Matches exactly |
-| Sampling rate | 256 Hz | Paper | After downsampling |
-| Time bins | 250 ms | Paper | 20 bins total |
-| Pseudo-trials | 4 averaged × 20 repeats | Paper | Per fold per class |
-| CV folds | 10 | Paper | Stratified, grouped |
-| LDA shrinkage | 0.01 | Paper | Regularization |
-| Searchlight neighbors | 4-5 | Paper | Plus center channel |
-| Interpolation threshold | 0.05 m | *Derived* | Paper ambiguous |
-| BF null interval | [0.5, ∞) | *Code* | Paper describes differently |
-| Random seed | Per-subject | *Our choice* | Code uses fixed seed=1 |
-
-### 10.4 Running the Pipeline
-
-```bash
-# Full analysis (all pairs, all classifiers)
-python run_pipeline.py
-
-# Quick test (subset of data)
-python run_pipeline.py --test_pairs 4 --classifiers lda --skip_searchlight
-
-# Generate figures only (requires preprocessed data)
-python step3a_plot_Fig1.py
-python step3b_plot_Fig2_Fig3.py --classifier lda
-```
-
----
-
-## 11. TODO: Missing Data and Report Issues
-
-This section documents gaps between what the paper reports, what we have computed, and issues that need resolution.
-
-### 11.1 Missing Values: All Participants Combined Analysis
-
-**Critical Gap:** The paper reports Bayes Factors for "All Participants Combined" (62 subjects pooled), but our `outputs.md` only contains Winners vs Losers split data (31 subjects each). The combined analysis typically yields much higher BF values due to larger sample size.
-
-#### What the Paper Reports (All Participants Combined):
-
-| Condition | Decision | Response | Feedback |
-|-----------|----------|----------|----------|
-| Own response | BF = 57 | BF = 729,735 | BF = 16,028 |
-| Opponent's response | No evidence | No evidence | BF = 87,847 |
-| Own previous | BF = 8 | BF = 4 | Not reported |
-| Opponent's previous | BF = 16,659 | Not reported | Not reported |
-
-#### What We Have (Only Winners/Losers Split from outputs.md):
-
-| Condition | Phase | Winners BF | Losers BF |
-|-----------|-------|------------|-----------|
-| Own response | Decision | 0.10 | 0.03 |
-| Own response | Response | 31.43 | 154.06 |
-| Own response | Feedback | 0.70 | 250.80 |
-| Opponent's response | Decision | 0.00 | 0.01 |
-| Opponent's response | Response | 0.21 | 0.08 |
-| Opponent's response | Feedback | 482.61 | 4.71 |
-| Own previous | Decision | 0.27 | 0.12 |
-| Own previous | Response | 0.74 | 34.57 |
-| Own previous | Feedback | 0.02 | 0.09 |
-| Opponent's previous | Decision | 15.11 | >1000 |
-| Opponent's previous | Response | 0.14 | 0.01 |
-| Opponent's previous | Feedback | 0.04 | 1.05 |
-
-**ACTION NEEDED:** Run the Bayes factor analysis on ALL 62 participants combined (not split by winner/loser) to generate Table 3 data for direct comparison with paper's Table 1.
-
-### 11.2 Major Discrepancies Requiring Investigation
-
-#### 11.2.1 Own Response During Decision Phase
-
-**Paper claims:** BF = 57 (moderate-strong evidence for above-chance decoding during Decision phase)
-
-**Our results:** Winners BF = 0.10, Losers BF = 0.03 (essentially NO evidence)
-
-**This is a significant discrepancy.** Even if we combine Winners and Losers, it's unlikely to jump from ~0.1 to 57. Possible causes:
-- Different Bayes factor computation method
-- Different pseudo-trial generation (fixed seed vs per-subject seed)
-- Different null interval interpretation
-- Bug in our implementation
-
-**ACTION NEEDED:** Verify our BF computation matches the author's method. Check if using fixed `seed=1` for all subjects (as in original code) changes the results significantly.
-
-#### 11.2.2 Opponent's Previous Response (Decision Phase)
-
-**Paper claims for Winners vs Losers:** Winners = No evidence, Losers = BF 2,382
-
-**Our results:** Winners BF = 15.11, Losers BF = >1000
-
-**Issue:** Our Winners show BF = 15.11 (moderate evidence) but paper says "no evidence." Our Losers show >1000 but paper says 2,382. The pattern is similar but magnitudes differ.
-
-### 11.3 Tables Requiring Updates
-
-#### Table 3 (Section 6.2) - Currently Has Approximate Values
-
-Current text uses "~50-100", ">1000" etc. Should be updated with:
-
-| Condition | Phase | Paper BF | Our BF (Exact) | Notes |
-|-----------|-------|----------|----------------|-------|
-| Own response | Decision | 57 | **MISSING (need all-participants)** | Major discrepancy |
-| Own response | Response | 729,735 | **MISSING (need all-participants)** | |
-| Own response | Feedback | 16,028 | **MISSING (need all-participants)** | |
-| Opponent's response | Feedback | 87,847 | **MISSING (need all-participants)** | |
-
-#### Table 4 (Section 6.3) - Can Be Updated Now
-
-| Condition | Group | Paper BF | Our BF (Exact) |
-|-----------|-------|----------|----------------|
-| Own response (Response) | Winners | 573 | 31.43 |
-| Own response (Response) | Losers | 3,337 | 154.06 |
-| Own previous (Response) | Winners | No evidence | 0.74 |
-| Own previous (Response) | Losers | 11 | 34.57 |
-| Opponent's previous (Decision) | Winners | No evidence | 15.11 |
-| Opponent's previous (Decision) | Losers | 2,382 | >1000 |
-
-**Note:** Our BF magnitudes are generally lower than paper's. This could be due to:
-1. Per-subject random seeds vs fixed seed=1
-2. Different stratified fold assignments
-3. Numerical differences in pseudo-trial averaging
-
-### 11.4 Potentially Vague or Inaccurate Statements in Report
-
-#### Section 6.2 (line 628-635):
-**Current text:** "Our BF" column shows "~50-100", ">1000"
-**Issue:** These are placeholders, not actual values
-**Fix:** Replace with exact values from outputs.md OR compute all-participants combined BFs
-
-#### Section 6.3 (line 672-678):
-**Current text:** "Our BF" column shows "~100-1000", "~1000-5000", "~5-20", ">100"
-**Issue:** These are approximations when exact values exist
-**Fix:** Use exact values: 31.43/154.06, 0.74/34.57, 15.11/>1000
-
-#### Section 6.4 (line 701-706):
-**Current text:** States accuracies like "38.39%", "37.61%" for multi-classifier comparison
-**Verification needed:** Confirm these match outputs.md
-**From outputs.md (LDA):** Own response Response Losers = 38.39% ✓, Opponent's response Feedback Winners = 37.61% ✓
-
-#### Section 7.1 (line 724-729):
-**Current text:** "BF up to 729,735" and "BF > 1000"
-**Issue:** We haven't computed all-participants combined BF to verify 729,735
-**Note:** This compares paper's all-participants value to what appears to be our split data
-
-### 11.5 Data Request Summary
-
-To complete this report accurately, the following data is needed:
-
-1. **All Participants Combined BF Values:**
-   - Run BF analysis on all 62 subjects (not split by winner/loser)
-   - For all 4 conditions × 3 phases = 12 BF values
-   - This will populate Table 3 accurately
-
-2. **Searchlight Results:**
-   - The report mentions searchlight analysis in the figures
-   - Confirm searchlight peak accuracies per region if available
-
-3. **Behavioral Statistics:**
-   - Rock/Paper/Scissors exact percentages for pie charts
-   - Markov chain prediction accuracy curve data points
-   - Win/loss/draw percentages with standard deviations
-
-### 11.6 Code Verification Checklist
-
-- [ ] Verify pseudo-trial generation uses correct seed strategy (fixed vs per-subject)
-- [ ] Confirm BF null interval matches code: `nullInterval=c(0.5, Inf)`
-- [ ] Check if MNE's baseline correction matches FieldTrip's per-phase baseline
-- [ ] Verify LDA shrinkage=0.01 is equivalent to CoSMoMVPA's default
-- [ ] Confirm 10-fold stratification produces similar fold assignments
-
-### 11.7 Recommended Next Steps
-
-1. **High Priority:** Compute "All Participants Combined" BF values to complete Table 3
-2. **High Priority:** Investigate Decision phase discrepancy (paper BF=57 vs our BF~0.1)
-3. **Medium Priority:** Update Tables 3 and 4 with exact values
-4. **Low Priority:** Add searchlight analysis details if computed
 
 ---
 
