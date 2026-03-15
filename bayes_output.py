@@ -39,16 +39,8 @@ def calc_bf_1samp(data, mu=100/3):
             # If R fails, fall back to pingouin
             pass
     
-    # Fallback using pingouin (two-sided test, then convert to directional?)
-    # Note: pingouin's bayesfactor_ttest returns BF10 for two-sided test.
-    # We want evidence for the alternative hypothesis that mean > mu.
-    # Since BF for one-sided can be approximated by doubling the two-sided BF if the effect is in the predicted direction.
-    # But for simplicity, we'll just return the two-sided BF10; the user can interpret.
     from scipy import stats
     t_stat, _ = stats.ttest_1samp(data, mu)
-    # For one-sided test where we expect mean > mu, BF can be approximated.
-    # A common approach: if t_stat > 0, then BF_one_sided ≈ 2 * BF_two_sided (if prior is symmetric).
-    # We'll keep it simple and return two-sided BF10.
     bf10 = pg.bayesfactor_ttest(t_stat, nx=len(data), r='medium')
     return bf10
 
@@ -116,44 +108,66 @@ def extract_winner_loser_stats():
             
         all_decoding = np.array(all_decoding)
         
+        # Compute overall mean accuracy across all participants for each condition
+        mean_acc_all = np.nanmean(all_decoding, axis=0)  # shape (4,20)
+        
         for t_idx, cond in enumerate(conditions):
             print(f"\n--- {cond} ---")
             
-            data_win = all_decoding[winners_idx, t_idx, :]
-            data_los = all_decoding[losers_idx, t_idx, :]
+            data_win = all_decoding[winners_idx, t_idx, :] if winners_idx else np.array([])
+            data_los = all_decoding[losers_idx, t_idx, :] if losers_idx else np.array([])
             
-            mean_win = np.nanmean(data_win, axis=0)
-            mean_los = np.nanmean(data_los, axis=0)
+            mean_win = np.nanmean(data_win, axis=0) if data_win.size else np.full(20, np.nan)
+            mean_los = np.nanmean(data_los, axis=0) if data_los.size else np.full(20, np.nan)
             
             for phase_name, (start, end) in phases.items():
                 print(f"  {phase_name}:")
                 
-                # Winners Calculation
-                phase_means_win = mean_win[start:end]
-                max_acc_val_win = np.max(phase_means_win)
-                bfs_win = []
+                # --- Overall stats (all participants) ---
+                phase_means_all = mean_acc_all[t_idx, start:end]
+                max_acc_all = np.max(phase_means_all)
+                bfs_all = []
                 for bin_idx in range(start, end):
-                    bin_data = data_win[:, bin_idx]
+                    bin_data = all_decoding[:, t_idx, bin_idx]
                     bin_data = bin_data[~np.isnan(bin_data)]
-                    bfs_win.append(calc_bf_1samp(bin_data) if len(bin_data) > 2 else 1.0)
-                max_bf_win = np.max(bfs_win)
+                    bfs_all.append(calc_bf_1samp(bin_data) if len(bin_data) > 2 else 1.0)
+                max_bf_all = np.max(bfs_all)
+                bf_str_all = "> 1000 (Extreme Evidence)" if max_bf_all > 1000 else f"{max_bf_all:.2f}"
+                print(f"    Overall -> Peak Acc: {max_acc_all:.2f}% | Max BF10: {bf_str_all}")
                 
-                # Losers Calculation
-                phase_means_los = mean_los[start:end]
-                max_acc_val_los = np.max(phase_means_los)
-                bfs_los = []
-                for bin_idx in range(start, end):
-                    bin_data = data_los[:, bin_idx]
-                    bin_data = bin_data[~np.isnan(bin_data)]
-                    bfs_los.append(calc_bf_1samp(bin_data) if len(bin_data) > 2 else 1.0)
-                max_bf_los = np.max(bfs_los)
+                # --- Winners stats ---
+                if data_win.size:
+                    phase_means_win = mean_win[start:end]
+                    max_acc_win = np.max(phase_means_win)
+                    bfs_win = []
+                    for bin_idx in range(start, end):
+                        bin_data = data_win[:, bin_idx]
+                        bin_data = bin_data[~np.isnan(bin_data)]
+                        bfs_win.append(calc_bf_1samp(bin_data) if len(bin_data) > 2 else 1.0)
+                    max_bf_win = np.max(bfs_win)
+                    bf_str_win = "> 1000 (Extreme Evidence)" if max_bf_win > 1000 else f"{max_bf_win:.2f}"
+                else:
+                    max_acc_win = np.nan
+                    max_bf_win = np.nan
+                    bf_str_win = "N/A"
+                print(f"    Winners -> Peak Acc: {max_acc_win:.2f}% | Max BF10: {bf_str_win}")
                 
-                # Print Formatting
-                bf_str_win = "> 1000 (Extreme Evidence)" if max_bf_win > 1000 else f"{max_bf_win:.2f}"
-                bf_str_los = "> 1000 (Extreme Evidence)" if max_bf_los > 1000 else f"{max_bf_los:.2f}"
-                
-                print(f"    Winners -> Peak Acc: {max_acc_val_win:.2f}% | Max BF10: {bf_str_win}")
-                print(f"    Losers  -> Peak Acc: {max_acc_val_los:.2f}% | Max BF10: {bf_str_los}")
+                # --- Losers stats ---
+                if data_los.size:
+                    phase_means_los = mean_los[start:end]
+                    max_acc_los = np.max(phase_means_los)
+                    bfs_los = []
+                    for bin_idx in range(start, end):
+                        bin_data = data_los[:, bin_idx]
+                        bin_data = bin_data[~np.isnan(bin_data)]
+                        bfs_los.append(calc_bf_1samp(bin_data) if len(bin_data) > 2 else 1.0)
+                    max_bf_los = np.max(bfs_los)
+                    bf_str_los = "> 1000 (Extreme Evidence)" if max_bf_los > 1000 else f"{max_bf_los:.2f}"
+                else:
+                    max_acc_los = np.nan
+                    max_bf_los = np.nan
+                    bf_str_los = "N/A"
+                print(f"    Losers  -> Peak Acc: {max_acc_los:.2f}% | Max BF10: {bf_str_los}")
 
 if __name__ == '__main__':
     extract_winner_loser_stats()
