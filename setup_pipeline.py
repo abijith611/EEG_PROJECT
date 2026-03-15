@@ -12,7 +12,7 @@ import subprocess
 import shutil
 import venv
 from pathlib import Path
-from config import get_logger
+from config import get_logger, setup_root_logger
 
 logger = get_logger(__name__)
 
@@ -301,4 +301,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    setup_root_logger(log_to_file=False)
     main()
