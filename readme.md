@@ -2,7 +2,7 @@
 
 This repository contains a complete Python pipeline for analyzing EEG data from a competitive Rock-Paper-Scissors (RPS) game. The project replicates and extends the original MATLAB analysis, adding support for multiple classifiers, Bayesian statistics, automated HTML reporting, and comprehensive logging. The goal is to decode players' own and opponent's responses from EEG signals, compare winners and losers, and evaluate the predictability of moves using Markov chains.
 
-**Scientific Context:** The pipeline breaks down each trial into three critical cognitive phases for analysis: **Decision (0–2s)**, **Response (2–4s)**, and **Feedback (4–5s)**. By tracking neural activity across these windows, the project identifies when and how players represent their own strategies versus their opponent's actions.
+**Scientific Context:** The pipeline breaks down each trial into three critical cognitive phases for analysis: **Decision (0–2s)**, **Response (2–4s)**, and **Feedback (4–5s)**. By tracking neural activity across these windows, the project identifies when and how players represent their own strategies versus their opponent's actions. *For a comprehensive neuroscientific interpretation of the results and detailed algorithmic justification, please refer to the included `Project_Report.pdf`.*
 
 ## Table of Contents
 
@@ -28,13 +28,14 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 
 ## Repository Structure
 
-```text
+```t
 .  
 ├── bayes_output.py                   # Computes directional Bayes Factors for winners vs. losers  
 ├── biosemi64.mat                     # Channel coordinates (used for topoplots)  
 ├── config.py                         # Central configuration & logging setup 
 ├── debug_decoding.py                 # Diagnostic script (prints decoding stats & plots averages)
 ├── generate_report.py                # Compiles all results into a comprehensive HTML report
+├── Project_Report.pdf                # Detailed scientific report & parameter justifications
 ├── project/ds006761/                 # The dataset directory (created during setup)
 ├── readme.md                         # This documentation file 
 ├── requirements.txt                  # Exact Python package versions
@@ -45,6 +46,7 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 ├── step2b_markovchain.py             # Markov chain analysis of response predictability  
 ├── step3a_plot_Fig1.py               # Generates Figure 1 (behavioural results)  
 ├── step3b_plot_Fig2_Fig3.py          # Generates Figures 2 & 3 (decoding accuracy and Bayes factors)  
+├── test_pipeline.py                  # Formal unit test suite for data engineering and statistical validation
 └── EEG-PROJECT/results/              # Output directory
     ├── logs/                         # Timestamped execution logs (.md)
     └── plots/                        # Generated figures (.png) and HTML reports (.html)
@@ -89,7 +91,7 @@ Accuracy over time & Bayes Factors        Behavioral distributions & Markov pred
 
 The pipeline requires the following Python packages (handled automatically by setup):
 
-```t
+```text
 mne  
 numpy  
 pandas  
@@ -160,7 +162,7 @@ Rscript -e "install.packages('BayesFactor')"
 **4. Download the dataset:**
 ```bash
 mkdir -p project/ds006761
-datalad install [https://github.com/OpenNeuroDatasets/ds006761.git](https://github.com/OpenNeuroDatasets/ds006761.git) project/ds006761
+datalad install https://github.com/OpenNeuroDatasets/ds006761.git project/ds006761
 cd project/ds006761
 datalad get .
 cd ../..
@@ -179,6 +181,11 @@ The main entry point is `run_pipeline.py`. It sequentially executes all preproce
 | `--skip_searchlight`| Skip the computationally expensive searchlight analysis          | `False`                    |
 
 ### Examples
+
+**Run Unit Tests / Sanity Checks** *(Validates data engineering, channel mapping, and Bayes math.):*
+```bash
+python -m unittest test_pipeline.py -v
+```
 
 **Full analysis** _(may take several hours / days depending on hardware):_
 ```bash
@@ -224,36 +231,34 @@ All generated files are stored in structured directories:
 
 ## Detailed File Descriptions
 
-### `step1_preprocessing.py`
+### `Project_Report.pdf` (LaTeX Output)
+The primary scientific document accompanying this repository. It provides detailed parameter justifications (e.g., channel repair thresholds, SVM alphas) and in-depth neuroscientific interpretation of the generated Bayes Factors and temporal decoding plots.
 
+### `test_pipeline.py`
+Automated unit test suite utilizing Python's `unittest` framework. Contains formal sanity checks that validate the mathematical shape of generated pseudo-trials, prove cross-validation integrity, verify the strict 1:1 mapping of 10-20 system channel coordinates, and assert the statistical logic behind directional Bayes Factor computation.
+
+### `step1_preprocessing.py`
 Reads raw .bdf files and event files. Epochs from -0.2 s to 5.0 s relative to decision onset. Repairs bad channels using inverse‑distance weighting (threshold 5 cm). Downsamples to 256 Hz and saves as `-epo.fif` files.
 
 ### `step2a_decoding.py`
-
 Loads epoched data and bins it into 20 time windows (250 ms each). Creates pseudo‑trials to increase SNR. Runs time‑resolved and searchlight decoding using 10‑fold stratified group cross‑validation. Saves results as `.pkl` files.
 
 ### `step2b_markovchain.py`
-
-Constructs a first‑order Markov chain from the response sequences (window sizes 5 to 100) and computes prediction accuracy for participant behaviors.
+Constructs a first‑order Markov chain from the response sequences (window sizes 5 to 100) and computes prediction accuracy for participant behaviors. Implements Laplace smoothing for Dirichlet priors.
 
 ### `step3a_plot_Fig1.py`
-
 Generates Figure 1 from the paper using custom raincloud plots (half‑violin + boxplot + scatter) for behavioral data and Markov chain predictability.
 
 ### `step3b_plot_Fig2_Fig3.py`
-
 Generates Figure 2 (Decoding accuracy over time with topoplots) and Figure 3 (Winners vs. losers decoding accuracy). Uses R's BayesFactor package for statistics and a custom hot colormap for topographies.
 
 ### `debug_decoding.py` & `bayes_output.py`
-
 Diagnostic scripts that calculate overall mean accuracies, winner/loser differences, and specific Bayes Factors across all classifiers, conditions, and phases.
 
 ### `generate_report.py`
-
 Dynamically generates a styled, comprehensive HTML report at the end of the pipeline. It automatically embeds generated figures (using base64 encoding) and formats complex tables displaying Bayes factors and decoding accuracies.
 
 ### `config.py`
-
 Central configuration file holding paths, standard 10-20 channel mappings, and hyper-parameters. Now includes a centralized logging setup (`setup_root_logger`) to write outputs to both the console and Markdown files.
 
 ## Extensibility: Adding Custom Classifiers
@@ -282,4 +287,4 @@ You can easily extend the pipeline to use your own scikit-learn compatible class
 - **BayesFactor R package:** [CRAN BayesFactor](https://cran.r-project.org/package=BayesFactor)
 - **MNE‑Python:** [MNE Tools](https://mne.tools/)
 
-For any questions, please contact: [Shriram](mailto:st194304@stud.uni-stuttgart.de), [Abijith](mailto:st194438@stud.uni-stuttgart.de), [Tejesh](mailto:st194770@stud.uni-stuttgart.de).
+For any questions, please contact: **Team SAT** [Shriram](mailto:st194304@stud.uni-stuttgart.de), [Abijith](mailto:st194438@stud.uni-stuttgart.de), [Tejesh](mailto:st194770@stud.uni-stuttgart.de).

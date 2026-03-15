@@ -20,6 +20,11 @@ def run_markov(max_pairs: Optional[int] = None) -> None:
     """
     Run Markov chain analysis for all pairs.
 
+    Mathematical Motivation:
+    This function computes a 1st-order Markov chain transition matrix for each player's 
+    game history. We evaluate how well a player's *next* move can be predicted strictly 
+    based on their *previous* move across sliding windows (N=5 to 100).
+
     Args:
         max_pairs: If given, process only the first `max_pairs` pairs.
     """
@@ -45,11 +50,35 @@ def run_markov(max_pairs: Optional[int] = None) -> None:
             ppt_col = 'player1_resp' if ppt == 1 else 'player2_resp'
             resp = events[ppt_col].values
 
+            # =========================================================================
+            # SANITY CHECK & DISCUSSION: Input Validation
+            # =========================================================================
             # Sanity check: responses should be 1,2,3 (Rock, Paper, Scissors)
             if not np.all(np.isin(resp[resp > 0], [1, 2, 3])):
                 logger.warning(f"Invalid response values for pair {pair} player {ppt}.")
+            else:
+                logger.info(f"Sanity check passed: Pair {pair} Player {ppt} inputs are valid. "
+                            f"This seems correct, because the RPS paradigm strictly permits "
+                            f"Rock (1), Paper (2), or Scissors (3). Any 0s (missed trials) are safely ignored.")
+
+            # =========================================================================
+            # ALGORITHMIC DOCUMENTATION: Transition Matrix & Laplace Smoothing
+            # =========================================================================
+            # prob_data tracks the cumulative frequencies of 1st-order transitions.
+            # It uses a flat 1D array of 13 elements per trial:
+            #   Index 0:    Trial number
+            #   Index 1-4:  [Total 'Rock', Rock->Rock, Rock->Paper, Rock->Scissors]
+            #   Index 5-8:  [Total 'Paper', Paper->Rock, Paper->Paper, Paper->Scissors]
+            #   Index 9-12: [Total 'Scissors', Scissors->Rock, Scissors->Paper, Scissors->Scissors]
 
             prob_data = np.full((NUM_TRIALS, 13), np.nan)
+            
+            # Why initialize with [1, 3, 1, 1, 1, 3, 1, 1, 1, 3, 1, 1, 1]?
+            # This implements Laplace Smoothing (a Dirichlet prior of alpha=1).
+            # We artificially inject 1 "phantom" observation for every possible transition 
+            # (e.g., Rock->Rock=1, Rock->Paper=1, Rock->Scissors=1, meaning Total Rock=3).
+            # This is mathematically necessary to prevent division-by-zero errors early in 
+            # the sequence when a player hasn't executed a specific transition yet.
             prob_data[0, :] = [1, 3, 1, 1, 1, 3, 1, 1, 1, 3, 1, 1, 1]
 
             for i in range(1, NUM_TRIALS):

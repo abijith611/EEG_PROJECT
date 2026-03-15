@@ -24,7 +24,7 @@ from joblib import Parallel, delayed
 import time
 from typing import List, Optional, Tuple, Any
 from config import (PATH_TO_DATA, DERIV_DIR, PAIR_IDS, NUM_TRIALS, NUM_CHAN,
-                    SEARCHLIGHT_CLASSIFIERS, N_JOBS_SEARCHLIGHT, DEFAULT_CLASSIFIERS,
+                    SEARCHLIGHT_CLASSIFIERS, N_JOBS_SEARCHLIGHT, DEFAULT_CLASSIFIERS, NUM_TIME_BINS,
                     get_pos_dict, get_logger)
 
 logger = get_logger(__name__)
@@ -74,7 +74,7 @@ def get_time_bins(epochs: mne.Epochs) -> np.ndarray:
     time_windows_AB = np.array([np.arange(0, 1.76, 0.25), np.arange(0.25, 2.01, 0.25)]).T
     time_windows_C = np.array([np.arange(0, 0.76, 0.25), np.arange(0.25, 1.01, 0.25)]).T
 
-    binned_data = np.zeros((data.shape[0], NUM_CHAN, 20))
+    binned_data = np.zeros((data.shape[0], NUM_CHAN, NUM_TIME_BINS))
     bin_idx = 0
     for d, tw in zip([data_A, data_B], [time_windows_AB, time_windows_AB]):
         for w in tw:

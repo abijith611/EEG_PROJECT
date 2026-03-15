@@ -14,13 +14,11 @@ from config import PLOT_DIR, DERIV_DIR, get_logger, setup_root_logger
 import debug_decoding
 import bayes_output
 
-# Setup logging (console only) – will be called by run_pipeline, but safe to have here.
-setup_root_logger(log_to_file=False)
 logger = get_logger(__name__)
 
 
 # ----------------------------------------------------------------------
-# Helper functions (unchanged)
+# Helper functions
 # ----------------------------------------------------------------------
 def encode_image(image_path: str) -> str:
     if not os.path.exists(image_path):
@@ -390,4 +388,6 @@ def run_report() -> None:
 
 
 if __name__ == "__main__":
+    # ONLY setup console logging if this file is run directly. This prevents it from accidentally wiping the FileHandler setup by run_pipeline.py
+    setup_root_logger(log_to_file=False)
     run_report()

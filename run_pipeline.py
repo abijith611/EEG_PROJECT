@@ -8,6 +8,7 @@ Usage:
 import argparse
 import sys
 import time
+import logging
 from config import setup_root_logger, get_logger, LOG_DIR
 
 # IMPORTANT: Configure root logger BEFORE any other imports that might create loggers.
@@ -31,8 +32,7 @@ def main() -> None:
     parser.add_argument('--test_pairs', type=int, default=None,
                         help="Limit the number of pairs to process for testing (e.g., 4)")
     parser.add_argument('--classifiers', nargs='+', default=['svm', 'lda', 'logistic', 'ridge'],
-                        choices=['svm', 'lda', 'logistic', 'ridge', 'rf', 'gb', 'knn', 'nb', 'mlp',
-                                 'elastic', 'qda', 'rbf_svm'],
+                        choices=['svm', 'lda', 'logistic', 'ridge'],
                         help="List of classifiers to run in decoding step")
     parser.add_argument('--skip_searchlight', action='store_true',
                         help="Skip searchlight computation (faster)")
