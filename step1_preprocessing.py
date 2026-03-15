@@ -14,7 +14,7 @@ import pandas as pd
 import numpy as np
 from scipy.spatial.distance import cdist
 from typing import List, Optional
-from config import PATH_TO_DATA, DERIV_DIR, PAIR_IDS, MATLAB_LAYOUT_LABELS, SFREQ, get_logger
+from config import PATH_TO_DATA, DERIV_DIR, PAIR_IDS, MATLAB_LAYOUT_LABELS, SFREQ, get_logger, setup_root_logger
 
 logger = get_logger(__name__)
 
@@ -181,6 +181,7 @@ def run_preprocessing(max_pairs: Optional[int] = None) -> None:
 
 if __name__ == '__main__':
     import argparse
+    setup_root_logger(log_to_file=False)
     parser = argparse.ArgumentParser()
     parser.add_argument('--test_pairs', type=int, default=None,
                         help='Number of pairs to process (for testing)')

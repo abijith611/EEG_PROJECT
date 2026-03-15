@@ -25,7 +25,7 @@ import time
 from typing import List, Optional, Tuple, Any
 from config import (PATH_TO_DATA, DERIV_DIR, PAIR_IDS, NUM_TRIALS, NUM_CHAN,
                     SEARCHLIGHT_CLASSIFIERS, N_JOBS_SEARCHLIGHT, DEFAULT_CLASSIFIERS, NUM_TIME_BINS,
-                    get_pos_dict, get_logger)
+                    get_pos_dict, get_logger, setup_root_logger)
 
 logger = get_logger(__name__)
 
@@ -350,6 +350,7 @@ def run_decoding(max_pairs: Optional[int] = None,
 
 if __name__ == '__main__':
     import argparse
+    setup_root_logger(log_to_file=False)
     parser = argparse.ArgumentParser()
     parser.add_argument('--test_pairs', type=int, default=None,
                         help='Number of pairs to process (for testing)')

@@ -14,7 +14,7 @@ from scipy import stats
 from scipy.stats import gaussian_kde
 import matplotlib.patches as mpatches
 from typing import List, Optional
-from config import PATH_TO_DATA, PLOT_DIR, PAIR_IDS, DERIV_DIR, get_logger
+from config import PATH_TO_DATA, PLOT_DIR, PAIR_IDS, DERIV_DIR, get_logger, setup_root_logger
 
 logger = get_logger(__name__)
 os.makedirs(PLOT_DIR, exist_ok=True)
@@ -222,6 +222,7 @@ def plot_behavior(max_pairs: Optional[int] = None) -> None:
 
 if __name__ == '__main__':
     import argparse
+    setup_root_logger(log_to_file=False)
     parser = argparse.ArgumentParser()
     parser.add_argument('--test_pairs', type=int, default=None,
                         help='Number of pairs to process (for testing)')

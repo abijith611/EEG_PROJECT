@@ -20,7 +20,7 @@ import logging
 from typing import Optional, List, Tuple
 from config import (PATH_TO_DATA, PLOT_DIR, PAIR_IDS, DERIV_DIR,
                     SEARCHLIGHT_CLASSIFIERS, NUM_TESTS, NUM_TIME_BINS, NUM_CHAN,
-                    get_logger)
+                    get_logger, setup_root_logger)
 
 # Suppress verbose rpy2 logs and R console outputs (like "t approximation invoked")
 logging.getLogger('rpy2').setLevel(logging.ERROR)
@@ -433,6 +433,7 @@ def plot_decoding(max_pairs: Optional[int] = None, classifier: str = 'svm') -> N
 if __name__ == '__main__':
     import argparse
     import sys
+    setup_root_logger(log_to_file=False)
     parser = argparse.ArgumentParser()
     parser.add_argument('--test_pairs', type=int, default=None)
     parser.add_argument('--classifier', type=str, default=None,
