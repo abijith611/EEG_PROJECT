@@ -56,7 +56,7 @@ This repository contains a complete Python pipeline for analyzing EEG data from 
 [Raw BDF & TSV] (ds006761)
       │
       ▼
-[Step 1: Preprocessing] ──▶ repair bad channels, epoch (-0.2s to 5.0s), downsample (256Hz)
+[Step 1: Preprocessing] repair bad channels, epoch (-0.2s to 5.0s), downsample (256Hz)
       │
       ├─────────────────────────────────────────┐
       ▼                                         ▼
@@ -89,7 +89,7 @@ Accuracy over time & Bayes Factors        Behavioral distributions & Markov pred
 
 The pipeline requires the following Python packages (handled automatically by setup):
 
-```text
+```t
 mne  
 numpy  
 pandas  
@@ -217,7 +217,7 @@ All generated files are stored in structured directories:
   - `Figure2_<clf>.png` (overall decoding accuracy over time & topoplots)
   - `Figure3_<clf>.png` (winners vs. losers decoding accuracy)
   - `debug_decoding_<clf>.png` (diagnostic plots)
-  - **`report_<timestamp>.html`** (A beautiful, self-contained HTML report summarizing all stats and embedding all figures)
+  - **`report_<timestamp>.html`** (A self-contained HTML report summarizing all stats and embedding all figures)
 
 - **`EEG-PROJECT/results/logs/`**:
   - **`run_<timestamp>.md`** (Detailed timestamped logs of the pipeline execution)
@@ -248,7 +248,7 @@ Generates Figure 2 (Decoding accuracy over time with topoplots) and Figure 3 (Wi
 
 Diagnostic scripts that calculate overall mean accuracies, winner/loser differences, and specific Bayes Factors across all classifiers, conditions, and phases.
 
-### `generate_report.py` (NEW)
+### `generate_report.py`
 
 Dynamically generates a styled, comprehensive HTML report at the end of the pipeline. It automatically embeds generated figures (using base64 encoding) and formats complex tables displaying Bayes factors and decoding accuracies.
 
