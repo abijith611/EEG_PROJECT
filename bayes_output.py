@@ -67,7 +67,7 @@ def calc_bf_1samp(data: np.ndarray, mu: float = 100/3) -> float:
         try:
             with conv.context():
                 robjects.globalenv['data'] = data
-                robjects.r(f'bf = BayesFactor::ttestBF(x=data, mu={mu}, rscale="medium", nullInterval=c(0.5, Inf))')
+                robjects.r(f'bf = BayesFactor::ttestBF(x=data, mu={mu}, rscale="medium", nullInterval=c(0, 0.5))')
                 bf_val = robjects.r('as.vector(bf[1])')[0]
             return float(bf_val)
         except Exception as e:

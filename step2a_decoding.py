@@ -44,6 +44,13 @@ pos_dict = get_pos_dict()
 def get_time_bins(epochs: mne.Epochs) -> np.ndarray:
     """
     Bin epoched data into 20 time windows of 250 ms each, with baseline correction.
+    
+    Steps:
+      1. Extract three task phases using absolute time masks.
+      2. Create shifted time vectors so that t=0 corresponds to the onset of each phase.
+      3. Apply baseline correction per phase using the 200 ms before phase onset.
+      4. Bin each phase separately using 250 ms windows.
+      5. Concatenate bins: 8 (Decision) + 8 (Response) + 4 (Feedback) = 20 bins.
 
     Args:
         epochs: MNE Epochs object (trials × channels × time).
@@ -55,35 +62,77 @@ def get_time_bins(epochs: mne.Epochs) -> np.ndarray:
     times = epochs.times
     data = epochs.get_data() * 1e6  # Convert to microvolts
 
-    mask_A = (times >= -0.2) & (times <= 2.0)
-    mask_B = (times >= 1.8) & (times <= 4.0)
-    mask_C = (times >= 3.8) & (times <= 5.0)
+    # ---- 1. Define masks for the three phases (absolute time) ----
+    mask_A = (times >= -0.2) & (times <= 2.0)   # Decision (includes 200 ms pre)
+    mask_B = (times >= 1.8) & (times <= 4.0)    # Response (includes 200 ms pre)
+    mask_C = (times >= 3.8) & (times <= 5.0)    # Feedback (includes 200 ms pre)
 
-    data_A, data_B, data_C = data[:, :, mask_A], data[:, :, mask_B], data[:, :, mask_C]
-    times_A = times[mask_A]
+    # Extract data for each phase (still in absolute time)
+    data_A = data[:, :, mask_A]   # shape (n_trials, n_chan, n_time_A)
+    data_B = data[:, :, mask_B]   # shape (n_trials, n_chan, n_time_B)
+    data_C = data[:, :, mask_C]   # shape (n_trials, n_chan, n_time_C)
 
-    mask_base = (times_A >= -0.2) & (times_A <= 0)
-    baseline_A = np.mean(data_A[:, :, mask_base], axis=2, keepdims=True)
-    baseline_B = np.mean(data_B[:, :, mask_base], axis=2, keepdims=True)
-    baseline_C = np.mean(data_C[:, :, mask_base[:data_C.shape[2]]], axis=2, keepdims=True)
+    # ---- 2. Create shifted time vectors for each phase (time 0 = phase onset) ----
+    n_A = data_A.shape[2]
+    n_B = data_B.shape[2]
+    n_C = data_C.shape[2]
 
+    # Shifted time: from -0.2 to 2.0 for Decision and Response,
+    #                from -0.2 to 1.0 for Feedback.
+    times_A_shift = np.linspace(-0.2, 2.0, n_A)
+    times_B_shift = np.linspace(-0.2, 2.0, n_B)
+    times_C_shift = np.linspace(-0.2, 1.0, n_C)
+
+    # ---- 3. Baseline correction per phase using the 200 ms before phase onset ----
+    # Indices where shifted time ≤ 0
+    base_A = times_A_shift <= 0
+    base_B = times_B_shift <= 0
+    base_C = times_C_shift <= 0
+
+    # Compute baseline mean for each trial and channel (keepdims for broadcasting)
+    baseline_A = np.mean(data_A[:, :, base_A], axis=2, keepdims=True)
+    baseline_B = np.mean(data_B[:, :, base_B], axis=2, keepdims=True)
+    baseline_C = np.mean(data_C[:, :, base_C], axis=2, keepdims=True)
+
+    # Subtract baseline
     data_A -= baseline_A
     data_B -= baseline_B
     data_C -= baseline_C
 
-    time_windows_AB = np.array([np.arange(0, 1.76, 0.25), np.arange(0.25, 2.01, 0.25)]).T
-    time_windows_C = np.array([np.arange(0, 0.76, 0.25), np.arange(0.25, 1.01, 0.25)]).T
+    # ---- 4. Define bin edges for each phase (relative to phase onset) ----
+    # Decision and Response: 0–2 s in 250 ms steps → 8 bins
+    # Feedback: 0–1 s in 250 ms steps → 4 bins
+    bin_edges_AB = np.arange(0, 2.01, 0.25)      # 0, 0.25, ..., 2.0
+    bin_edges_C  = np.arange(0, 1.01, 0.25)      # 0, 0.25, ..., 1.0
 
-    binned_data = np.zeros((data.shape[0], NUM_CHAN, NUM_TIME_BINS))
+    # Pre‑allocate output array
+    binned_data = np.zeros((data.shape[0], data.shape[1], 20))
+
+    # ---- 5. Bin each phase and fill the output in order ----
     bin_idx = 0
-    for d, tw in zip([data_A, data_B], [time_windows_AB, time_windows_AB]):
-        for w in tw:
-            m = (times_A[:d.shape[2]] > w[0]) & (times_A[:d.shape[2]] < w[1])
-            binned_data[:, :, bin_idx] = np.mean(d[:, :, m], axis=2)
-            bin_idx += 1
-    for w in time_windows_C:
-        m = (times_A[:data_C.shape[2]] > w[0]) & (times_A[:data_C.shape[2]] < w[1])
-        binned_data[:, :, bin_idx] = np.mean(data_C[:, :, m], axis=2)
+
+    # Phase A (Decision)
+    for i in range(len(bin_edges_AB) - 1):
+        t_start = bin_edges_AB[i]
+        t_end   = bin_edges_AB[i+1]
+        mask = (times_A_shift >= t_start) & (times_A_shift < t_end)
+        binned_data[:, :, bin_idx] = np.mean(data_A[:, :, mask], axis=2)
+        bin_idx += 1
+
+    # Phase B (Response)
+    for i in range(len(bin_edges_AB) - 1):
+        t_start = bin_edges_AB[i]
+        t_end   = bin_edges_AB[i+1]
+        mask = (times_B_shift >= t_start) & (times_B_shift < t_end)
+        binned_data[:, :, bin_idx] = np.mean(data_B[:, :, mask], axis=2)
+        bin_idx += 1
+
+    # Phase C (Feedback)
+    for i in range(len(bin_edges_C) - 1):
+        t_start = bin_edges_C[i]
+        t_end   = bin_edges_C[i+1]
+        mask = (times_C_shift >= t_start) & (times_C_shift < t_end)
+        binned_data[:, :, bin_idx] = np.mean(data_C[:, :, mask], axis=2)
         bin_idx += 1
 
     logger.info(f"   Binning done. Shape: {binned_data.shape}")

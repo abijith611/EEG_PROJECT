@@ -52,7 +52,7 @@ custom_hot = mcolors.ListedColormap(cmap_hot(np.linspace(0, 0.9, 256)))
 
 def calc_bayes_factor(data: np.ndarray, mu: float = 1/3,
                       rscale: str = "medium",
-                      null_interval: str = "c(0.5, Inf)",
+                      null_interval: str = "c(0, 0.5)",
                       return_index: int = 1) -> float:
     """
     Calculate directional Bayes factor for one-sample test against mu.
