@@ -51,28 +51,25 @@ custom_hot = mcolors.ListedColormap(cmap_hot(np.linspace(0, 0.9, 256)))
 
 
 def calc_bayes_factor(data: np.ndarray, mu: float = 1/3,
-                      rscale: str = "medium", null_interval: str = "c(0.5, Inf)") -> float:
+                      rscale: str = "medium",
+                      null_interval: str = "c(0.5, Inf)",
+                      return_index: int = 1) -> float:
     """
     Calculate directional Bayes factor for one-sample test against mu.
-
-    Args:
-        data: Array of values (proportions, not percentages).
-        mu: Chance level (default 1/3).
-        rscale: Prior scale for BayesFactor.
-        null_interval: R expression for the null interval.
-
-    Returns:
-        Bayes factor (BF10).
+    - return_index = 1 -> BF for restricted alternative vs point null (default)
+    - return_index = 2 -> BF for full alternative vs null interval
+    This matches the MATLAB bayesfactor_R_wrapper with 'returnindex' option.
     """
     if not R_AVAILABLE:
         from scipy import stats
         t_stat, _ = stats.ttest_1samp(data, mu)
+        # pingouin does not support null intervals; return standard two-sided BF10
         return pg.bayesfactor_ttest(t_stat, nx=len(data), r=rscale)
     try:
         with conv.context():
             robjects.globalenv['data'] = data
             robjects.r(f'bf = BayesFactor::ttestBF(x=data, mu={mu}, rscale="{rscale}", nullInterval={null_interval})')
-            bf_val = robjects.r('as.vector(bf[1])')[0]
+            bf_val = robjects.r(f'as.vector(bf[{return_index}])')[0]
         return float(bf_val)
     except Exception as e:
         logger.warning(f"R BayesFactor failed: {e}. Falling back to pingouin.")
@@ -81,36 +78,20 @@ def calc_bayes_factor(data: np.ndarray, mu: float = 1/3,
         return pg.bayesfactor_ttest(t_stat, nx=len(data), r=rscale)
 
 
-def calc_bayes_factor_ind(data_win: np.ndarray, data_los: np.ndarray,
-                          rscale: str = "medium", null_interval: str = "c(-0.5, 0.5)") -> float:
+def calc_bayes_factor_paired(data_win: np.ndarray, data_los: np.ndarray,
+                             rscale: str = "medium",
+                             null_interval: str = "c(-0.5, 0.5)") -> float:
     """
-    Calculate Bayes factor for independent samples (winners vs losers).
-
-    Args:
-        data_win: Values for winners.
-        data_los: Values for losers.
-        rscale: Prior scale.
-        null_interval: R expression for the null interval.
-
-    Returns:
-        Bayes factor (BF10 for alternative hypothesis).
+    Paired Bayes factor: tests whether the difference (win - los) is
+    outside the null interval [-0.5, 0.5] on the effect‑size scale.
+    Returns BF for the full alternative vs the null interval (bf[2]).
+    This exactly replicates the MATLAB difference test.
     """
-    if not R_AVAILABLE:
-        from scipy import stats
-        t_stat, _ = stats.ttest_ind(data_win, data_los)
-        return pg.bayesfactor_ttest(t_stat, nx=len(data_win), ny=len(data_los), r=rscale)
-    try:
-        with conv.context():
-            robjects.globalenv['data_win'] = data_win
-            robjects.globalenv['data_los'] = data_los
-            robjects.r(f'bf = BayesFactor::ttestBF(x=data_win, y=data_los, rscale="{rscale}", nullInterval={null_interval})')
-            bf_val = robjects.r('as.vector(bf[2])')[0]
-        return float(bf_val)
-    except Exception as e:
-        logger.warning(f"R BayesFactor independent failed: {e}. Falling back to pingouin.")
-        from scipy import stats
-        t_stat, _ = stats.ttest_ind(data_win, data_los)
-        return pg.bayesfactor_ttest(t_stat, nx=len(data_win), ny=len(data_los), r=rscale)
+    diff = data_win - data_los
+    # Use mu=0, the specified null interval, and return_index=2
+    return calc_bayes_factor(diff, mu=0, rscale=rscale,
+                             null_interval=null_interval,
+                             return_index=2)
 
 
 def plot_decoding(max_pairs: Optional[int] = None, classifier: str = 'svm') -> None:
@@ -254,7 +235,7 @@ def plot_decoding(max_pairs: Optional[int] = None, classifier: str = 'svm') -> N
         for w in range(NUM_TIME_BINS):
             slice_w = data_t[:, w][~np.isnan(data_t[:, w])]
             if len(slice_w) > 2:
-                bfs[w] = calc_bayes_factor(slice_w / 100)   # convert to proportion
+                bfs[w] = calc_bayes_factor(slice_w)
 
         ax_bf.scatter(x_axis_bins, [0] * 20, color='lightgray', s=90, alpha=0.8)
         sc = ax_bf.scatter(x_axis_bins, [0] * 20, c=np.log10(bfs),
@@ -385,7 +366,7 @@ def plot_decoding(max_pairs: Optional[int] = None, classifier: str = 'svm') -> N
 
         bfs_win, bfs_los, bfs_diff = np.ones(NUM_TIME_BINS), np.ones(NUM_TIME_BINS), np.ones(NUM_TIME_BINS)
         for w in range(NUM_TIME_BINS):
-            sw = data_win[:, w][~np.isnan(data_win[:, w])] / 100
+            sw = data_win[:, w][~np.isnan(data_win[:, w])] / 100   # convert to proportion
             sl = data_los[:, w][~np.isnan(data_los[:, w])] / 100
 
             if len(sw) > 2:
@@ -393,7 +374,7 @@ def plot_decoding(max_pairs: Optional[int] = None, classifier: str = 'svm') -> N
             if len(sl) > 2:
                 bfs_los[w] = calc_bayes_factor(sl)
             if len(sw) > 2 and len(sl) > 2:
-                bfs_diff[w] = calc_bayes_factor_ind(sw, sl)
+                bfs_diff[w] = calc_bayes_factor_paired(sw, sl)
 
         # Background gray circles
         ax_bf.scatter(x_axis_bins, [2] * 20, color='lightgray', s=90, alpha=0.8)
