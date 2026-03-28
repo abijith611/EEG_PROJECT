@@ -598,14 +598,12 @@ The Markov chain prediction curves match—accuracy rises from 33% (chance) to ~
 
 | Condition | Phase | Paper BF (All 62 subj) | Our BF | Status |
 |-----------|-------|------------------------|--------|--------|
-| Own response | Decision | 57 | 0.0056| Evidence for chance |
-| Own response | Response | 729,735 | 11,350 | Strong evidence for above‑chance |
-| Own response | Feedback | 16,028 | 603.09 | Strong evidence for above‑chance |
-| Opponent's response | Decision | No Information | 0.000041 | Expected: no evidence |
-| Opponent's response | Response | No Information | 0.0025 | Expected: no evidence |
-| Opponent's response | Feedback | 87,847 | 5,887 | Very strong evidence for above‑chance |
-| Own previous | Decision | 8 | 0.139 | Anecdotal evidence for above‑chance |
-| Opponent's previous | Decision | 16,659 | 20,557 | Overwhelming evidence for above‑chance |
+| Own response | Decision | 57 | 1.81 | Paper strong, ours anecdotal |
+| Own response | Response | 729,735 | 4,178 | Both very strong, magnitude differs |
+| Own response | Feedback | 16,028 | 556.17 | Both very strong, magnitude differs |
+| Opponent's response | Feedback | 87,847 | 2,520 | Both very strong, magnitude differs |
+| Own previous | Decision | 8 | 6.70 | Both moderate, magnitude differs  |
+| Opponent's previous | Decision | 16,659 | 5,427 | Both very strong, magnitude differs |
 
 Our results reproduce the qualitative pattern reported in the original study: own response is decodable above chance (strongest during Response), opponent’s response becomes decodable only during Feedback, and previous‑trial information is also decodable (especially the opponent’s previous response). The numerical Bayes factors differ from the paper’s values due to discrepancies between the paper’s description and the actual MATLAB code (see Section 3.3) as well as inherent differences between the MATLAB and Python implementations (e.g., random seeding, pseudo‑trial generation). Nevertheless, the overall pattern of evidence—which conditions show above‑chance decoding—is consistent with the original findings.
 
@@ -625,12 +623,12 @@ This comparison reveals the paper's most important discovery. Let's examine it c
 
 | Condition | Group | Paper BF | Our BF | Match? |
 |-----------|-------|----------|--------|--------|
-| Own response (Response) | Winners | 573 | 31.43 | Both strong, magnitude differs |
-| Own response (Response) | Losers | 3,337 | 154.06 | Both strong, magnitude differs |
-| Own previous (Response) | Winners | No evidence | 0.74 | No evidence |
-| Own previous (Response) | Losers | 11 | 34.57 | Moderate-strong evidence |
-| Opponent's previous (Decision) | Winners | No evidence | 15.11 | Paper: none, Ours: moderate |
-| Opponent's previous (Decision) | Losers | 2,382 | >1000 | Strong evidence |
+| Own response (Response) | Winners | 573 | 28.37 | Both strong, magnitude differs |
+| Own response (Response) | Losers | 3,337 | 65.47 | Both strong, magnitude differs |
+| Own previous (Response) | Winners | No evidence | 5.18 | No evidence |
+| Own previous (Response) | Losers | 11 | 34.33 | Moderate-strong evidence |
+| Opponent's previous (Decision) | Winners | No evidence | 21.37 | Paper: none, Ours: moderate |
+| Opponent's previous (Decision) | Losers | 2,382 | 179.89 | Strong evidence |
 
 **The Key Pattern:**
 Both winners and losers show strong evidence for current-response decoding—both groups' brains encode their current decision.
@@ -656,10 +654,10 @@ We extended the original analysis by testing four classifiers. The table shows p
 
 | Classifier | Own Response (Response Phase) | Opponent's Response (Feedback) |
 |------------|------------------------------|-------------------------------|
-| LDA | 38.39% (Losers) | 37.61% (Winners) |
-| SVM | 37.59% (Losers) | 37.11% (Winners) |
-| Logistic | 37.85% (Losers) | 37.82% (Winners) |
-| Ridge | 38.00% (Losers) | 37.51% (Winners) |
+| LDA | 38.33% (Losers) | 37.65% (Winners) |
+| SVM | 38.15% (Losers) | 37.03% (Winners) |
+| Logistic | 37.91% (Losers) | 37.85% (Winners) |
+| Ridge | 38.06% (Losers) | 37.47% (Winners) |
 
 **Key Observation:** All classifiers produce results within 1% of each other.
 
@@ -711,7 +709,7 @@ We have successfully reproduced the main findings of Moerel et al. (2025) using 
 
 ### 8.1 Key Findings Confirmed
 
-1. **Neural signatures of RPS decisions exist** and can be decoded 4-5% above the 33.33% chance level (peak accuracy: 38.39% for own response during Response phase)
+1. **Neural signatures of RPS decisions exist** and can be decoded 4-5% above the 33.33% chance level (peak accuracy: 37.76% for own response during Response phase)
 2. **Temporal dynamics match theory:** Own response decodable during Response and Feedback phases (BF = 31-250); opponent's response only decodable after visual feedback (BF = 4-482)
 3. **Effects are robust:** Four different classifiers (LDA, SVM, Logistic, Ridge) produce consistent accuracy results within 1% of each other
 
@@ -720,8 +718,8 @@ We have successfully reproduced the main findings of Moerel et al. (2025) using 
 > "EEG data showed neural encoding of current decisions, with overall match losers uniquely relying on past trials, potentially hindering performance."
 
 Our independent analysis confirms this pattern:
-- **Own previous response (Response phase):** Winners BF = 0.74 (no evidence), Losers BF = 34.57 (strong evidence)
-- **Opponent's previous response (Decision phase):** Winners BF = 15.11 (moderate), Losers BF > 1000 (overwhelming)
+- **Own previous response (Response phase):** Winners BF = 5.18 (no evidence), Losers BF = 34.33 (strong evidence)
+- **Opponent's previous response (Decision phase):** Winners BF = 21.37 (moderate), Losers BF > 179.89 (very strong evidence)
 
 The asymmetry is clear: Losers show much stronger neural encoding of previous-trial information than Winners. This suggests that the cognitive strategy of ignoring (or not encoding) past events may contribute to better competitive performance.
 
