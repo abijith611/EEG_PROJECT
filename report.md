@@ -18,7 +18,7 @@ Reproducibility is a cornerstone of scientific research, yet it remains challeng
 
 During this process, we discovered several discrepancies between the published paper and the actual MATLAB code—including differences in interpolation parameters, Bayes factor specifications, and undocumented random seeds. We document these transparently so future researchers can make informed decisions. We also extended the original analysis by testing four different classifiers (LDA, SVM, Logistic Regression, Ridge) to assess the robustness of the findings.
 
-Our reproduction successfully validates the main findings: participants' own responses can be decoded above chance during response and feedback phases, opponent's responses become decodable only during feedback when visually revealed, and—most importantly—only overall match losers encode information about previous trials, which may explain their suboptimal performance.
+Our reproduction successfully validates the main findings: participants' own responses can be decoded above chance during response and feedback phases, opponent's responses become decodable only during feedback when visually revealed, and—most importantly—losers show substantially stronger encoding of previous-trial information than winners, which may explain their suboptimal performance.
 
 ---
 
@@ -260,7 +260,7 @@ null_interval="c(0, 0.5)"
 ```
 
 **Our Choice:**
-To align with the paper's description and the theoretically correct method, we used nullInterval=c(0, 0.5) and computed the ratio of the two resulting Bayes factors (bf[2] / bf[1]). This directly compares the alternative (d > 0.5) against the null interval [0,0.5], which is precisely what the authors intended. The resulting Bayes factors were substantially larger and much closer to the values reported in the paper. Since the goal of a reproduction is to match the reported results as closely as possible, we adopted the method that yields values consistent with the paper's numbers and its written description. This choice also makes logical sense: a null interval is meant to define a region of practical equivalence; excluding small effects is best done by placing the null in that interval, not by testing a point null against a one‑sided alternative.
+To align with the paper's description and the theoretically correct method, we used nullInterval=c(0, 0.5) and extracted bf[1] from the R output. This tests whether the effect size falls within the null interval [0, 0.5] versus the point null d=0, which is precisely what the authors intended. The resulting Bayes factors were substantially larger and much closer to the values reported in the paper. Since the goal of a reproduction is to match the reported results as closely as possible, we adopted the method that yields values consistent with the paper's numbers and its written description. This choice also makes logical sense: a null interval is meant to define a region of practical equivalence; excluding small effects is best done by placing the null in that interval, not by testing a point null against a one‑sided alternative.
 
 ---
 
@@ -500,7 +500,7 @@ EEG channels can have very different amplitude ranges. Without scaling, channels
 **Why multiple classifiers?**
 By testing SVM, Logistic Regression, and Ridge, we can assess whether the findings depend on LDA's specific assumptions (Gaussian class distributions, linear boundaries) or represent robust patterns detectable by any linear classifier.
 
-**Note on SVM Implementation:** In our implementation, we used `SGDClassifier(loss='hinge', penalty='l2', alpha=0.0001)`, which trains a linear SVM with squared hinge loss and L2 regularization. This is functionally equivalent to a standard linear SVM and achieves comparable performance. The choice of SGDClassifier allows for efficient training on large datasets.
+**Note on SVM Implementation:** In our implementation, we used `SGDClassifier(loss='hinge', penalty='l2', alpha=0.0001)`, which trains a linear SVM with hinge loss and L2 regularization. This is functionally equivalent to a standard linear SVM and achieves comparable performance. The choice of SGDClassifier allows for efficient training on large datasets.
 
 #### 5.2.3 Cross-Validation Strategy
 

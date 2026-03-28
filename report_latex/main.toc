@@ -39,16 +39,16 @@
 \contentsline {subsection}{\numberline {6.2}Figure 2: Overall Decoding Results}{19}{subsection.6.2}%
 \contentsline {subsubsection}{\numberline {6.2.1}Original Figure (from paper)}{19}{subsubsection.6.2.1}%
 \contentsline {subsubsection}{\numberline {6.2.2}Our Reproduction (LDA)}{20}{subsubsection.6.2.2}%
-\contentsline {subsubsection}{\numberline {6.2.3}Quantitative Comparison}{21}{subsubsection.6.2.3}%
+\contentsline {subsubsection}{\numberline {6.2.3}Quantitative Comparison}{20}{subsubsection.6.2.3}%
 \contentsline {subsection}{\numberline {6.3}Figure 3: Winners vs Losers}{21}{subsection.6.3}%
-\contentsline {subsubsection}{\numberline {6.3.1}Original Figure (from paper)}{22}{subsubsection.6.3.1}%
-\contentsline {subsubsection}{\numberline {6.3.2}Our Reproduction (LDA)}{23}{subsubsection.6.3.2}%
-\contentsline {subsubsection}{\numberline {6.3.3}The Critical Finding}{23}{subsubsection.6.3.3}%
-\contentsline {subsection}{\numberline {6.4}Multi-Classifier Robustness}{24}{subsection.6.4}%
-\contentsline {section}{\numberline {7}Discussion}{25}{section.7}%
-\contentsline {subsection}{\numberline {7.1}Limitations of the Original Study}{25}{subsection.7.1}%
-\contentsline {subsection}{\numberline {7.2}Reproduction Challenges}{25}{subsection.7.2}%
-\contentsline {section}{\numberline {8}Conclusion}{26}{section.8}%
-\contentsline {subsection}{\numberline {8.1}Key Findings Confirmed}{26}{subsection.8.1}%
-\contentsline {subsection}{\numberline {8.2}Paper's Central Claim Validated}{26}{subsection.8.2}%
-\contentsline {section}{\numberline {9}References}{26}{section.9}%
+\contentsline {subsubsection}{\numberline {6.3.1}Original Figure (from paper)}{21}{subsubsection.6.3.1}%
+\contentsline {subsubsection}{\numberline {6.3.2}Our Reproduction (LDA)}{22}{subsubsection.6.3.2}%
+\contentsline {subsubsection}{\numberline {6.3.3}The Critical Finding}{22}{subsubsection.6.3.3}%
+\contentsline {subsection}{\numberline {6.4}Multi-Classifier Robustness}{23}{subsection.6.4}%
+\contentsline {section}{\numberline {7}Discussion}{24}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Limitations of the Original Study}{24}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Reproduction Challenges}{24}{subsection.7.2}%
+\contentsline {section}{\numberline {8}Conclusion}{25}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Key Findings Confirmed}{25}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Paper's Central Claim Validated}{25}{subsection.8.2}%
+\contentsline {section}{\numberline {9}References}{25}{section.9}%

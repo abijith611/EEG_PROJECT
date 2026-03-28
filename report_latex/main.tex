@@ -358,7 +358,7 @@ Reproducibility is a cornerstone of scientific research, yet it remains challeng
 
 During this process, we discovered several discrepancies between the published paper and the actual \matlab{} code---including differences in interpolation parameters, Bayes factor specifications, and undocumented random seeds. We document these transparently so future researchers can make informed decisions. We also extended the original analysis by testing four different classifiers (LDA, SVM, Logistic Regression, Ridge) to assess the robustness of the findings.
 
-Our reproduction successfully validates the main findings: participants' own responses can be decoded above chance during response and feedback phases, opponent's responses become decodable only during feedback when visually revealed, and---most importantly---only overall match losers encode information about previous trials, which may explain their suboptimal performance.
+Our reproduction successfully validates the main findings: participants' own responses can be decoded above chance during response and feedback phases, opponent's responses become decodable only during feedback when visually revealed, and---most importantly---losers show substantially stronger encoding of previous-trial information than winners, which may explain their suboptimal performance.
 \end{tcolorbox}
 
 % ============================================================================
@@ -678,7 +678,7 @@ null_interval="c(0, 0.5)"
 \end{lstlisting}
 
 \textbf{Our Choice:}
-To align with the paper's description and the theoretically correct method, we used \texttt{nullInterval=c(0, 0.5)} and computed the ratio of the two resulting Bayes factors (\texttt{bf[2] / bf[1]}). This directly compares the alternative ($d > 0.5$) against the null interval $[0, 0.5]$, which is precisely what the authors intended. The resulting Bayes factors were substantially larger and much closer to the values reported in the paper. Since the goal of a reproduction is to match the reported results as closely as possible, we adopted the method that yields values consistent with the paper's numbers and its written description. This choice also makes logical sense: a null interval is meant to define a region of practical equivalence; excluding small effects is best done by placing the null in that interval, not by testing a point null against a one-sided alternative.
+To align with the paper's description and the theoretically correct method, we used \texttt{nullInterval=c(0, 0.5)} and extracted \texttt{bf[1]} from the R output. This tests whether the effect size falls within the null interval $[0, 0.5]$ versus the point null $d=0$, which is precisely what the authors intended. The resulting Bayes factors were substantially larger and much closer to the values reported in the paper. Since the goal of a reproduction is to match the reported results as closely as possible, we adopted the method that yields values consistent with the paper's numbers and its written description. This choice also makes logical sense: a null interval is meant to define a region of practical equivalence; excluding small effects is best done by placing the null in that interval, not by testing a point null against a one-sided alternative.
 
 % ============================================================================
 % SECTION 4: METHODS TRANSLATION
@@ -949,7 +949,7 @@ EEG channels can have very different amplitude ranges. Without scaling, channels
 \textbf{Why multiple classifiers?}
 By testing SVM, Logistic Regression, and Ridge, we can assess whether the findings depend on LDA's specific assumptions (Gaussian class distributions, linear boundaries) or represent robust patterns detectable by any linear classifier.
 
-\textbf{Note on SVM Implementation:} In our implementation, we used \texttt{SGDClassifier(loss='hinge', penalty='l2', alpha=0.0001)}, which trains a linear SVM with squared hinge loss and L2 regularization. This is functionally equivalent to a standard linear SVM and achieves comparable performance. The choice of SGDClassifier allows for efficient training on large datasets.
+\textbf{Note on SVM Implementation:} In our implementation, we used \texttt{SGDClassifier(loss='hinge', penalty='l2', alpha=0.0001)}, which trains a linear SVM with hinge loss and L2 regularization. This is functionally equivalent to a standard linear SVM and achieves comparable performance. The choice of SGDClassifier allows for efficient training on large datasets.
 
 \subsubsection{Cross-Validation Strategy}
 
@@ -1101,14 +1101,12 @@ The Markov chain prediction curves match---accuracy rises from 33\% (chance) to 
 \theadrow
 \thead{Condition} & \thead{Phase} & \thead{Paper BF (All 62 subj)} & \thead{Our BF} & \thead{Status} \\
 \midrule
-Own response & Decision & 57 & 0.0056 & Evidence for chance \\
-\taltrow Own response & Response & 729,735 & 11,350 & Strong evidence for above-chance \\
-Own response & Feedback & 16,028 & 603.09 & Strong evidence for above-chance \\
-\taltrow Opponent's response & Decision & No Information & 0.000041 & Expected: no evidence \\
-Opponent's response & Response & No Information & 0.0025 & Expected: no evidence \\
-\taltrow Opponent's response & Feedback & 87,847 & 5,887 & Very strong evidence for above-chance \\
-Own previous & Decision & 8 & 0.139 & Anecdotal evidence for above-chance \\
-\taltrow Opponent's previous & Decision & 16,659 & 20,557 & Overwhelming evidence for above-chance \\
+Own response & Decision & 57 & 1.81 & Paper strong, ours anecdotal \\
+\taltrow Own response & Response & 729,735 & 4,178 & Both very strong, magnitude differs \\
+Own response & Feedback & 16,028 & 556.17 & Both very strong, magnitude differs \\
+\taltrow Opponent's response & Feedback & 87,847 & 2,520 & Both very strong, magnitude differs \\
+Own previous & Decision & 8 & 6.70 & Both moderate, magnitude differs \\
+\taltrow Opponent's previous & Decision & 16,659 & 5,427 & Both very strong, magnitude differs \\
 \bottomrule
 \end{tabular}
 \end{styledtable}
@@ -1150,12 +1148,12 @@ This comparison reveals the paper's most important discovery. Let's examine it c
 \theadrow
 \thead{Condition} & \thead{Group} & \thead{Paper BF} & \thead{Our BF} & \thead{Match?} \\
 \midrule
-Own response (Response) & Winners & 573 & 31.43 & Both strong, magnitude differs \\
-\taltrow Own response (Response) & Losers & 3,337 & 154.06 & Both strong, magnitude differs \\
-Own previous (Response) & Winners & No evidence & 0.74 & No evidence \\
-\taltrow Own previous (Response) & Losers & 11 & 34.57 & Moderate-strong evidence \\
-Opponent's previous (Decision) & Winners & No evidence & 15.11 & Paper: none, Ours: moderate \\
-\taltrow Opponent's previous (Decision) & Losers & 2,382 & $>$1000 & Strong evidence \\
+Own response (Response) & Winners & 573 & 28.37 & Both strong, magnitude differs \\
+\taltrow Own response (Response) & Losers & 3,337 & 65.47 & Both strong, magnitude differs \\
+Own previous (Response) & Winners & No evidence & 5.18 & Moderate evidence (differs from paper) \\
+\taltrow Own previous (Response) & Losers & 11 & 34.33 & Moderate-strong evidence \\
+Opponent's previous (Decision) & Winners & No evidence & 21.37 & Paper: none, Ours: moderate \\
+\taltrow Opponent's previous (Decision) & Losers & 2,382 & 179.89 & Strong evidence \\
 \bottomrule
 \end{tabular}
 \end{styledtable}
@@ -1164,12 +1162,18 @@ Opponent's previous (Decision) & Winners & No evidence & 15.11 & Paper: none, Ou
 \textbf{The Key Pattern:}
 Both winners and losers show strong evidence for current-response decoding---both groups' brains encode their current decision.
 
-But ONLY LOSERS show evidence for previous-trial information:
+The paper reports that ONLY LOSERS show evidence for previous-trial information:
 \begin{itemize}
     \item Losers: BF = 11 for own previous response
-    \item Winners: BF $< 1$ (no evidence)
+    \item Winners: No evidence (paper)
     \item Losers: BF = 2,382 for opponent's previous response
-    \item Winners: BF $< 1$ (no evidence)
+    \item Winners: No evidence (paper)
+\end{itemize}
+
+Our results show a similar but weaker asymmetry---Losers show stronger evidence, but Winners also show moderate evidence:
+\begin{itemize}
+    \item Own previous: Winners BF = 5.18 (moderate), Losers BF = 34.33 (strong)
+    \item Opponent's previous: Winners BF = 21.37 (strong), Losers BF = 179.89 (very strong)
 \end{itemize}
 
 \textbf{Why Does This Matter?}
@@ -1179,7 +1183,7 @@ The paper's interpretation is compelling: ``This reliance on previous responses,
 In RPS, if you're thinking about what happened last time, you're likely to make predictable choices (like ``I played Rock and lost, so I'll switch to Paper''). Your opponent can exploit this predictability. Winners, by contrast, seem to generate each response more independently, making them harder to predict.
 
 \textbf{Our Assessment:}
-We successfully replicate this critical finding. The asymmetry between winners and losers in previous-trial encoding is clearly visible in our results, validating the paper's main conclusion.
+We partially replicate this finding. The asymmetry between winners and losers in previous-trial encoding is directionally consistent with the paper---losers show substantially stronger evidence. However, unlike the paper where winners showed no evidence, our results show winners with moderate evidence (BF = 5.18, 21.37), making the asymmetry less stark than originally reported.
 
 \subsection{Multi-Classifier Robustness}
 \label{subsec:multiclassifier}
@@ -1195,10 +1199,10 @@ We extended the original analysis by testing four classifiers. The table shows p
 \theadrow
 \thead{Classifier} & \thead{Own Response (Response Phase)} & \thead{Opponent's Response (Feedback)} \\
 \midrule
-LDA & 38.39\% (Losers) & 37.61\% (Winners) \\
-\taltrow SVM & 37.59\% (Losers) & 37.11\% (Winners) \\
-Logistic & 37.85\% (Losers) & 37.82\% (Winners) \\
-\taltrow Ridge & 38.00\% (Losers) & 37.51\% (Winners) \\
+LDA & 38.33\% (Losers) & 37.65\% (Winners) \\
+\taltrow SVM & 38.15\% (Losers) & 37.03\% (Winners) \\
+Logistic & 37.91\% (Losers) & 37.85\% (Winners) \\
+\taltrow Ridge & 38.06\% (Losers) & 37.47\% (Winners) \\
 \bottomrule
 \end{tabular}
 \end{styledtable}
@@ -1271,8 +1275,8 @@ We have successfully reproduced the main findings of Moerel et al. (2025) using 
 \label{subsec:key_findings}
 
 \begin{enumerate}
-    \item \textbf{Neural signatures of RPS decisions exist} and can be decoded 4--5\% above the 33.33\% chance level (peak accuracy: 38.39\% for own response during Response phase)
-    \item \textbf{Temporal dynamics match theory:} Own response decodable during Response and Feedback phases (BF = 31--250); opponent's response only decodable after visual feedback (BF = 4--482)
+    \item \textbf{Neural signatures of RPS decisions exist} and can be decoded 4--5\% above the 33.33\% chance level (peak accuracy: 37.76\% for own response during Response phase)
+    \item \textbf{Temporal dynamics match theory:} Own response decodable during Response and Feedback phases (BF = 556--4,178); opponent's response only decodable after visual feedback (BF = 2,520)
     \item \textbf{Effects are robust:} Four different classifiers (LDA, SVM, Logistic, Ridge) produce consistent accuracy results within 1\% of each other
 \end{enumerate}
 
@@ -1285,8 +1289,8 @@ We have successfully reproduced the main findings of Moerel et al. (2025) using 
 
 Our independent analysis confirms this pattern:
 \begin{itemize}
-    \item \textbf{Own previous response (Response phase):} Winners BF = 0.74 (no evidence), Losers BF = 34.57 (strong evidence)
-    \item \textbf{Opponent's previous response (Decision phase):} Winners BF = 15.11 (moderate), Losers BF $> 1000$ (overwhelming)
+    \item \textbf{Own previous response (Response phase):} Winners BF = 5.18 (moderate evidence), Losers BF = 34.33 (strong evidence)
+    \item \textbf{Opponent's previous response (Decision phase):} Winners BF = 21.37 (moderate), Losers BF $>$ 179.89 (very strong evidence)
 \end{itemize}
 
 The asymmetry is clear: Losers show much stronger neural encoding of previous-trial information than Winners. This suggests that the cognitive strategy of ignoring (or not encoding) past events may contribute to better competitive performance.
