@@ -33,7 +33,6 @@ Our reproduction successfully validates the main findings: participants' own res
 7. [Discussion](#7-discussion)
 8. [Conclusion](#8-conclusion)
 9. [References](#9-references)
-10. [Appendix](#10-appendix)
 
 ---
 
@@ -300,38 +299,46 @@ The original FieldTrip approach uses `ft_channelrepair` with distance-based neig
 ```python
 def repair_bads_inverse_distance(epochs, bad_chans, thresh=0.05):
     """
-    Repair bad channels using inverse-distance weighted interpolation.
+    Replicate MATLAB's ft_channelrepair with method='distance'.
 
-    For each bad channel:
-    1. Find all good channels within thresh meters
-    2. Compute weights as inverse of distance (closer = more weight)
-    3. Replace bad channel data with weighted average of neighbors
-
-    Parameters
-    ----------
-    epochs : mne.Epochs
-        The epoched data
-    bad_chans : list
-        Names of channels to repair
-    thresh : float
-        Distance threshold in meters (default 0.05 = 5 cm)
+    For each bad channel, find neighbours within thresh meters,
+    compute inverse-distance weights, and replace the bad channel's
+    data with the weighted average of its neighbours.
+    If no neighbours are found within the threshold, fall back to
+    using all good channels (with inverse-distance weighting).
     """
     pos = epochs.get_montage().get_positions()['ch_pos']
+    ch_names = epochs.ch_names
+    pos_arr = np.array([pos[name] for name in ch_names])
     dist_mat = cdist(pos_arr, pos_arr)
 
+    good_mask = np.array([ch not in bad_chans for ch in ch_names])
+    good_idx = np.where(good_mask)[0]
+    data = epochs.get_data()
+
     for bad in bad_chans:
+        if bad not in ch_names:
+            continue
         bad_idx = ch_names.index(bad)
+
         within_thresh = np.where((dist_mat[bad_idx] < thresh) &
                                  (dist_mat[bad_idx] > 0))[0]
+        neigh_idx = np.intersect1d(within_thresh, good_idx)
 
-        # Inverse distance weighting
+        if len(neigh_idx) == 0:
+            neigh_idx = good_idx  # Fallback: use all good channels
+
         dists = dist_mat[bad_idx, neigh_idx]
-        weights = 1.0 / dists
+        with np.errstate(divide='ignore'):
+            weights = 1.0 / dists
+        weights[np.isinf(weights)] = 0
         weights /= weights.sum()
 
-        # Apply weighted interpolation
         data[:, bad_idx, :] = np.average(data[:, neigh_idx, :],
                                           axis=1, weights=weights)
+
+    epochs._data = data
+    return epochs
 ```
 
 **Why inverse-distance weighting?**
@@ -354,34 +361,27 @@ Average multiple trials together. Noise is random, so it partially cancels when 
 ```python
 def create_pseudo_trials(X, y, seed):
     """
-    Create pseudo-trials by averaging groups of 4 trials.
-
-    Process:
-    1. Split data into 10 stratified folds (for cross-validation)
-    2. Within each fold and class, randomly select 4 trials
-    3. Average these 4 trials to create one pseudo-trial
-    4. Repeat 20 times per fold per class
+    Create pseudo-trials by averaging groups of 4 trials within each class,
+    using a stratified 10-fold split to define chunks.
 
     This creates higher SNR training/test data while maintaining
     the cross-validation structure (pseudo-trials from one fold
     never leak into another fold).
     """
-    rng = np.random.default_rng(seed)
+    from sklearn.model_selection import StratifiedKFold
     skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=seed)
-
     X_pseudo, y_pseudo, chunks = [], [], []
+    np.random.seed(seed)
 
     for chunk_idx, (_, fold_indices) in enumerate(skf.split(X, y)):
-        fold_X, fold_y = X[fold_indices], y[fold_indices]
+        fold_y, fold_X = y[fold_indices], X[fold_indices]
 
         for c in np.unique(fold_y):
             c_idx = np.where(fold_y == c)[0]
+            replace = len(c_idx) < 4
 
             for _ in range(20):  # 20 pseudo-trials per class per fold
-                # Randomly select 4 trials (with replacement if needed)
-                samp_idx = rng.choice(c_idx, size=4,
-                                      replace=len(c_idx) < 4)
-                # Average them
+                samp_idx = np.random.choice(c_idx, size=4, replace=replace)
                 X_pseudo.append(np.mean(fold_X[samp_idx], axis=0))
                 y_pseudo.append(c)
                 chunks.append(chunk_idx)
@@ -479,17 +479,18 @@ This temporal resolution balances two competing needs:
 **Our implementation:**
 ```python
 def get_classifier(name, seed):
-    if name == 'lda':
-        clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage=0.01)
-    elif name == 'svm':
+    if name == 'svm':
         clf = SGDClassifier(loss='hinge', penalty='l2', alpha=0.0001,
-                           max_iter=1000, random_state=seed)
+                            max_iter=1000, tol=1e-3, random_state=seed, n_jobs=1)
+    elif name == 'lda':
+        clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage=0.01)
     elif name == 'logistic':
-        clf = LogisticRegression(C=1.0, solver='lbfgs', max_iter=1000,
-                                random_state=seed)
+        clf = LogisticRegression(l1_ratio=0, C=1.0, solver='lbfgs',
+                                 max_iter=1000, random_state=seed)
     elif name == 'ridge':
         clf = RidgeClassifier(alpha=1.0, random_state=seed)
-
+    else:
+        raise ValueError(f"Unknown classifier: {name}")
     return make_pipeline(StandardScaler(), clf)
 ```
 
@@ -522,25 +523,22 @@ We use Bayes Factors rather than p-values because they provide richer informatio
 
 **Our implementation:**
 ```python
-def calc_bayes_factor(data, mu=1/3, rscale="medium", null_interval="c(0, 0.5)"):
-    """
-    Compute Bayes Factor for above-chance decoding.
-
-    Parameters:
-    - data: accuracy values (one per subject)
-    - mu: chance level (1/3 for 3-class classification)
-    - rscale: prior width ("medium" = Cauchy scale sqrt(2)/2)
-    - null_interval: effect sizes considered negligible
-    """
+def calc_bf_1samp(data, mu=100/3):
+    if len(data) < 3:
+        return 1.0
     if R_AVAILABLE:
-        robjects.globalenv['data'] = data
-        robjects.r(f'bf = BayesFactor::ttestBF(x=data, mu={mu}, ' +
-                  f'rscale="{rscale}", nullInterval={null_interval})')
-        return float(robjects.r('as.vector(bf[1])')[0])
-    else:
-        # Fallback to pingouin
-        t_stat, _ = stats.ttest_1samp(data, mu)
-        return pg.bayesfactor_ttest(t_stat, len(data))
+        try:
+            with conv.context():
+                robjects.globalenv['data'] = data
+                robjects.r(f'bf = BayesFactor::ttestBF(x=data, mu={mu}, '
+                           f'rscale="medium", nullInterval=c(0, 0.5))')
+                bf_val = robjects.r('as.vector(bf[1])')[0]
+            return float(bf_val)
+        except Exception as e:
+            logger.warning(f"R BayesFactor failed: {e}. Falling back to pingouin.")
+    from scipy import stats
+    t_stat, _ = stats.ttest_1samp(data, mu)
+    return pg.bayesfactor_ttest(t_stat, nx=len(data), r='medium')
 ```
 
 **Fallback to pingouin:** If R or the BayesFactor package is not available, we fall back to a two‑sided Bayes factor computed using `pingouin.bayesfactor_ttest()`. This approximation does not support directional null intervals and therefore may yield different results. In our primary analysis, we ensured that R was properly installed and used the exact R implementation to match the original study.
@@ -560,10 +558,10 @@ def calc_bayes_factor(data, mu=1/3, rscale="medium", null_interval="c(0, 0.5)"):
 ### 6.1 Figure 1: Behavioral Results
 
 #### Original Figure (from paper):
-![Author's Figure 1](author_figures/Figure1.png)
+![Author's Figure 1](EEG-PROJECT/results/plots/Figure1_author.png)
 
 #### Our Reproduction:
-![Our Figure 1](results/plots/Figure1.png)
+![Our Figure 1](EEG-PROJECT/results/plots/Figure1.png)
 
 #### Detailed Comparison:
 
@@ -589,10 +587,10 @@ The Markov chain prediction curves match—accuracy rises from 33% (chance) to ~
 ### 6.2 Figure 2: Overall Decoding Results
 
 #### Original Figure (from paper):
-![Author's Figure 2](author_figures/Figure2.png)
+![Author's Figure 2](EEG-PROJECT/results/plots/Figure2_author.png)
 
 #### Our Reproduction (LDA):
-![Our Figure 2 LDA](results/plots/Figure2_lda.png)
+![Our Figure 2 LDA](EEG-PROJECT/results/plots/Figure2_lda.png)
 
 #### Quantitative Comparison:
 
@@ -614,10 +612,10 @@ Our results reproduce the qualitative pattern reported in the original study: ow
 ### 6.3 Figure 3: Winners vs Losers
 
 #### Original Figure (from paper):
-![Author's Figure 3](author_figures/Figure3.png)
+![Author's Figure 3](EEG-PROJECT/results/plots/Figure3_author.png)
 
 #### Our Reproduction (LDA):
-![Our Figure 3 LDA](results/plots/Figure3_lda.png)
+![Our Figure 3 LDA](EEG-PROJECT/results/plots/Figure3_lda.png)
 
 #### The Critical Finding:
 
