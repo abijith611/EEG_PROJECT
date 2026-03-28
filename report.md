@@ -238,7 +238,7 @@ The code uses a fixed `seed=1` for ALL subjects, meaning every participant's pse
 Using the same seed for everyone means that if trial 5, 12, 23, and 47 happen to be selected for one pseudo-trial in subject 1, those exact same trial indices are selected for subject 2, 3, etc. This could introduce subtle correlations if certain trial positions are systematically different (e.g., due to fatigue or learning).
 
 **Our Decision:**
-We deliberately deviated from the original code by using participant-specific seeds (`seed = pair * 10 + ppt`). This maintains reproducibility (same seed always gives same result) while ensuring each participant has unique pseudo-trial compositions. This may cause small numerical differences from the original results.
+We deliberately deviated from the original code by using participant-specific seeds (`seed = pair * 10 + ppt`). This maintains reproducibility (same seed always gives same result) while ensuring each participant has unique pseudo-trial compositions.
 
 ### 3.3 Bayes Factor Null Interval
 
@@ -498,9 +498,9 @@ def get_classifier(name, seed):
 EEG channels can have very different amplitude ranges. Without scaling, channels with larger amplitudes would dominate the classification. StandardScaler transforms each feature to zero mean and unit variance, giving all channels equal opportunity to contribute.
 
 **Why multiple classifiers?**
-The original study used only LDA. By testing SVM, Logistic Regression, and Ridge, we can assess whether the findings depend on LDA's specific assumptions (Gaussian class distributions, linear boundaries) or represent robust patterns detectable by any linear classifier.
+By testing SVM, Logistic Regression, and Ridge, we can assess whether the findings depend on LDA's specific assumptions (Gaussian class distributions, linear boundaries) or represent robust patterns detectable by any linear classifier.
 
-**Note on SVM Implementation:** The original study refers to "SVM" without specifying the variant. In our implementation, we used `SGDClassifier(loss='hinge', penalty='l2', alpha=0.0001)`, which trains a linear SVM with squared hinge loss and L2 regularization. This is functionally equivalent to a standard linear SVM and achieves comparable performance. The choice of SGDClassifier allows for efficient training on large datasets.
+**Note on SVM Implementation:** In our implementation, we used `SGDClassifier(loss='hinge', penalty='l2', alpha=0.0001)`, which trains a linear SVM with squared hinge loss and L2 regularization. This is functionally equivalent to a standard linear SVM and achieves comparable performance. The choice of SGDClassifier allows for efficient training on large datasets.
 
 #### 5.2.3 Cross-Validation Strategy
 
@@ -632,8 +632,6 @@ This comparison reveals the paper's most important discovery. Let's examine it c
 | Opponent's previous (Decision) | Winners | No evidence | 15.11 | Paper: none, Ours: moderate |
 | Opponent's previous (Decision) | Losers | 2,382 | >1000 | Strong evidence |
 
-**Note on magnitude differences:** Our BF values are consistently lower than the paper's. This is likely due to our use of per-subject random seeds (vs. the original code's fixed seed=1 for all subjects), which affects pseudo-trial composition and thus final accuracy distributions.
-
 **The Key Pattern:**
 Both winners and losers show strong evidence for current-response decoding—both groups' brains encode their current decision.
 
@@ -698,9 +696,9 @@ Our reproduction encountered several implementation‑specific limitations:
 
 - **Computational constraints:** The dataset is large (~78 GB). We attempted to use Docker for a reproducible environment but faced technical issues; running the full pipeline on local hardware was resource‑intensive, limiting iterative debugging and re‑runs.
 
-- **Classifier differences:** Despite using the same LDA algorithm, our results differ from the original, likely due to variations in underlying library implementations (scikit‑learn vs. MATLAB’s `fitcdiscr`) and differences in random seed handling. We also tested LDA with and without regularization to assess sensitivity.
+- **Classifier differences:** Despite using the same LDA algorithm, our results differ from the original, likely due to variations in underlying library implementations (scikit‑learn vs. MATLAB’s `fitcdiscr`). We also tested LDA with and without regularization to assess sensitivity.
 
-- **SVM implementation:** The original study likely used a standard SVM; however, we found `sklearn.svm.SVC` to be prohibitively slow on our data. We therefore used `SGDClassifier(loss='hinge')`, which is functionally equivalent to a linear SVM but trains much faster. This choice may introduce minor differences.
+- **SVM implementation:** We found `sklearn.svm.SVC` to be prohibitively slow on our data. We used `SGDClassifier(loss='hinge')`, which is functionally equivalent to a linear SVM but trains much faster. This choice may introduce minor differences.
 
 - **Performance differences:** MATLAB’s matrix‑based operations generally run faster than Python’s loops, affecting processing time and the feasibility of exhaustive parameter sweeps.
 
