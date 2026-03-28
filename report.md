@@ -625,7 +625,7 @@ This comparison reveals the paper's most important discovery. Let's examine it c
 |-----------|-------|----------|--------|--------|
 | Own response (Response) | Winners | 573 | 28.37 | Both strong, magnitude differs |
 | Own response (Response) | Losers | 3,337 | 65.47 | Both strong, magnitude differs |
-| Own previous (Response) | Winners | No evidence | 5.18 | No evidence |
+| Own previous (Response) | Winners | No evidence | 5.18 | Moderate evidence (differs from paper) |
 | Own previous (Response) | Losers | 11 | 34.33 | Moderate-strong evidence |
 | Opponent's previous (Decision) | Winners | No evidence | 21.37 | Paper: none, Ours: moderate |
 | Opponent's previous (Decision) | Losers | 2,382 | 179.89 | Strong evidence |
@@ -633,11 +633,15 @@ This comparison reveals the paper's most important discovery. Let's examine it c
 **The Key Pattern:**
 Both winners and losers show strong evidence for current-response decoding—both groups' brains encode their current decision.
 
-But ONLY LOSERS show evidence for previous-trial information:
+The paper reports that ONLY LOSERS show evidence for previous-trial information:
 - Losers: BF = 11 for own previous response
-- Winners: BF < 1 (no evidence)
+- Winners: No evidence (paper)
 - Losers: BF = 2,382 for opponent's previous response
-- Winners: BF < 1 (no evidence)
+- Winners: No evidence (paper)
+
+Our results show a similar but weaker asymmetry—Losers show stronger evidence, but Winners also show moderate evidence:
+- Own previous: Winners BF = 5.18 (moderate), Losers BF = 34.33 (strong)
+- Opponent's previous: Winners BF = 21.37 (strong), Losers BF = 179.89 (very strong)
 
 **Why Does This Matter?**
 
@@ -646,7 +650,7 @@ The paper's interpretation is compelling: "This reliance on previous responses, 
 In RPS, if you're thinking about what happened last time, you're likely to make predictable choices (like "I played Rock and lost, so I'll switch to Paper"). Your opponent can exploit this predictability. Winners, by contrast, seem to generate each response more independently, making them harder to predict.
 
 **Our Assessment:**
-We successfully replicate this critical finding. The asymmetry between winners and losers in previous-trial encoding is clearly visible in our results, validating the paper's main conclusion.
+We partially replicate this finding. The asymmetry between winners and losers in previous-trial encoding is directionally consistent with the paper—losers show substantially stronger evidence. However, unlike the paper where winners showed no evidence, our results show winners with moderate evidence (BF = 5.18, 21.37), making the asymmetry less stark than originally reported.
 
 ### 6.4 Multi-Classifier Robustness
 
@@ -710,7 +714,7 @@ We have successfully reproduced the main findings of Moerel et al. (2025) using 
 ### 8.1 Key Findings Confirmed
 
 1. **Neural signatures of RPS decisions exist** and can be decoded 4-5% above the 33.33% chance level (peak accuracy: 37.76% for own response during Response phase)
-2. **Temporal dynamics match theory:** Own response decodable during Response and Feedback phases (BF = 31-250); opponent's response only decodable after visual feedback (BF = 4-482)
+2. **Temporal dynamics match theory:** Own response decodable during Response and Feedback phases (BF = 556–4,178); opponent's response only decodable after visual feedback (BF = 2,520)
 3. **Effects are robust:** Four different classifiers (LDA, SVM, Logistic, Ridge) produce consistent accuracy results within 1% of each other
 
 ### 8.2 Paper's Central Claim Validated
@@ -718,7 +722,7 @@ We have successfully reproduced the main findings of Moerel et al. (2025) using 
 > "EEG data showed neural encoding of current decisions, with overall match losers uniquely relying on past trials, potentially hindering performance."
 
 Our independent analysis confirms this pattern:
-- **Own previous response (Response phase):** Winners BF = 5.18 (no evidence), Losers BF = 34.33 (strong evidence)
+- **Own previous response (Response phase):** Winners BF = 5.18 (moderate evidence), Losers BF = 34.33 (strong evidence)
 - **Opponent's previous response (Decision phase):** Winners BF = 21.37 (moderate), Losers BF > 179.89 (very strong evidence)
 
 The asymmetry is clear: Losers show much stronger neural encoding of previous-trial information than Winners. This suggests that the cognitive strategy of ignoring (or not encoding) past events may contribute to better competitive performance.
